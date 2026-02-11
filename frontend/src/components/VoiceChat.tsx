@@ -741,9 +741,9 @@ export default function VoiceChat({
                 {entry.role === 'user' ? 'YOU' : 'LINDA'}
               </span>
               {entry.text}
+            </div>
           </div>
         ))}
-        <div ref={transcriptEndRef} />
       </div>
 
       {/* Call controls */}
