@@ -474,13 +474,13 @@ export default function DashboardPage() {
                               ? 'bg-accent-emerald/10 text-accent-emerald border border-accent-emerald/20'
                               : 'bg-emperor-cream/5 text-emperor-cream/40 border border-emperor-cream/10'
                           }`}>
-                            {lead.status.toUpperCase()}
+                            {(lead.status || 'pending').toUpperCase()}
                           </span>
                         </div>
                         <div className="flex items-center gap-3 text-sm">
-                          <span className="text-emperor-cream/70 font-medium">{lead.device}</span>
+                          <span className="text-emperor-cream/70 font-medium">{lead.device || 'Unknown Device'}</span>
                           <span className="text-emperor-cream/30">&middot;</span>
-                          <span className="text-emperor-cream/50 capitalize">{lead.repair_type.replace('_', ' ')}</span>
+                          <span className="text-emperor-cream/50 capitalize">{(lead.repair_type || 'other').replace('_', ' ')}</span>
                         </div>
                         <div className="flex items-center gap-3 text-xs text-emperor-cream/30 font-mono">
                           <span className="flex items-center gap-1">
