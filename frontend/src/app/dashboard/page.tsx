@@ -31,21 +31,51 @@ import ChatLogOverlay from '@/components/ChatLogOverlay'
 /** Type for Brandon's status modes */
 type StatusMode = 'working' | 'gym' | 'driving' | 'break' | 'sleeping' | 'custom'
 type VoiceName = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
+type Gender = 'male' | 'female' | 'neutral'
 
 interface VoiceOption {
   value: VoiceName
   label: string
   description: string
+  gender: Gender
 }
 
-const VOICE_OPTIONS: VoiceOption[] = [
-  { value: 'onyx', label: 'Onyx', description: 'Deep, warm — chill vibe' },
-  { value: 'nova', label: 'Nova', description: 'Bright, polished — professional' },
-  { value: 'echo', label: 'Echo', description: 'Smooth, energetic — closer' },
-  { value: 'alloy', label: 'Alloy', description: 'Balanced, versatile — neutral' },
-  { value: 'fable', label: 'Fable', description: 'Warm, narrative — storyteller' },
-  { value: 'shimmer', label: 'Shimmer', description: 'Clear, expressive — friendly' },
+interface AssistantNameOption {
+  value: string
+  label: string
+  gender: Gender
+}
+
+const ALL_VOICE_OPTIONS: VoiceOption[] = [
+  { value: 'onyx', label: 'Onyx', description: 'Deep, warm — chill vibe', gender: 'male' },
+  { value: 'echo', label: 'Echo', description: 'Smooth, energetic — closer', gender: 'male' },
+  { value: 'fable', label: 'Fable', description: 'Warm, narrative — storyteller', gender: 'male' },
+  { value: 'nova', label: 'Nova', description: 'Bright, polished — professional', gender: 'female' },
+  { value: 'shimmer', label: 'Shimmer', description: 'Clear, expressive — friendly', gender: 'female' },
+  { value: 'alloy', label: 'Alloy', description: 'Balanced, versatile — neutral', gender: 'neutral' },
 ]
+
+const ASSISTANT_NAMES: AssistantNameOption[] = [
+  { value: 'Linda', label: 'Linda', gender: 'female' },
+  { value: 'Marcus', label: 'Marcus', gender: 'male' },
+  { value: 'Devon', label: 'Devon', gender: 'neutral' },
+  { value: 'Keisha', label: 'Keisha', gender: 'female' },
+  { value: 'Darius', label: 'Darius', gender: 'male' },
+  { value: 'Alex', label: 'Alex', gender: 'neutral' },
+]
+
+/** Default voice per gender — auto-selects when name changes */
+const DEFAULT_VOICE_FOR_GENDER: Record<Gender, VoiceName> = {
+  female: 'nova',
+  male: 'onyx',
+  neutral: 'alloy',
+}
+
+/** Get voice options compatible with a gender */
+function getVoicesForGender(gender: Gender): VoiceOption[] {
+  if (gender === 'neutral') return ALL_VOICE_OPTIONS
+  return ALL_VOICE_OPTIONS.filter(v => v.gender === gender || v.gender === 'neutral')
+}
 
 interface StatusConfig {
   icon: typeof Wrench
@@ -83,6 +113,7 @@ interface AssistantConfig {
   greeting: string
   specialInfo: string
   voice: VoiceName
+  assistantName: string
 }
 
 export default function DashboardPage() {
@@ -99,8 +130,13 @@ export default function DashboardPage() {
     maxDiscount: 15,
     greeting: "Hey! Thanks for reaching out to EmperorLinda Cell Phone Repairs. How can I help you today?",
     specialInfo: "",
-    voice: 'onyx',
+    voice: 'nova',
+    assistantName: 'Linda',
   })
+
+  // Derive the selected name's gender and available voices
+  const selectedNameConfig = ASSISTANT_NAMES.find(n => n.value === config.assistantName) ?? ASSISTANT_NAMES[0]
+  const availableVoices = getVoicesForGender(selectedNameConfig.gender)
 
   const [leads, setLeads] = useState<Lead[]>([])
   const [leadsLoading, setLeadsLoading] = useState(true)
@@ -153,6 +189,7 @@ export default function DashboardPage() {
           setConfig(prev => ({
             ...prev,
             voice: state.voice || prev.voice,
+            assistantName: state.assistant_name || prev.assistantName,
             specialInfo: state.special_info || '',
             greeting: state.greeting || prev.greeting,
             maxDiscount: state.max_discount !== undefined ? state.max_discount : prev.maxDiscount,
@@ -191,6 +228,7 @@ export default function DashboardPage() {
           notes,
           special_info: config.specialInfo,
           voice: config.voice,
+          assistant_name: config.assistantName,
           greeting: config.greeting,
           max_discount: config.maxDiscount,
           ai_answers_calls: config.aiAnswersCalls,
@@ -407,14 +445,50 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Voice Selector */}
+                {/* Assistant Name Selector */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <User className="w-4 h-4 text-emperor-gold" />
+                    <span className="text-sm text-emperor-cream/70">Assistant Name</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {ASSISTANT_NAMES.map((n) => (
+                      <button
+                        key={n.value}
+                        onClick={() => {
+                          const nameGender = n.gender
+                          const currentVoice = ALL_VOICE_OPTIONS.find(v => v.value === config.voice)
+                          const currentVoiceCompatible = currentVoice &&
+                            (currentVoice.gender === nameGender || currentVoice.gender === 'neutral' || nameGender === 'neutral')
+                          setConfig(prev => ({
+                            ...prev,
+                            assistantName: n.value,
+                            // Auto-switch voice if current voice doesn't match new name's gender
+                            voice: currentVoiceCompatible ? prev.voice : DEFAULT_VOICE_FOR_GENDER[nameGender],
+                          }))
+                          setStatusSaved(false)
+                        }}
+                        className={`px-3 py-2 rounded-lg text-center transition-all border ${
+                          config.assistantName === n.value
+                            ? 'bg-emperor-gold/10 border-emperor-gold/30 text-emperor-gold'
+                            : 'border-emperor-cream/5 hover:bg-emperor-cream/5 text-emperor-cream/40'
+                        }`}
+                      >
+                        <span className="text-xs font-semibold block">{n.label}</span>
+                        <span className="text-[10px] opacity-60 block leading-tight capitalize">{n.gender}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Voice Selector (filtered by name gender) */}
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <Volume2 className="w-4 h-4 text-emperor-gold" />
-                    <span className="text-sm text-emperor-cream/70">LINDA&apos;s Voice</span>
+                    <span className="text-sm text-emperor-cream/70">{config.assistantName}&apos;s Voice</span>
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
-                    {VOICE_OPTIONS.map((v) => (
+                    {availableVoices.map((v) => (
                       <button
                         key={v.value}
                         onClick={() => { setConfig(prev => ({ ...prev, voice: v.value })); setStatusSaved(false); }}
@@ -430,7 +504,10 @@ export default function DashboardPage() {
                     ))}
                   </div>
                   <p className="text-[10px] text-emperor-cream/20 mt-1.5 font-mono">
-                    Same voice for phone calls &amp; web demo
+                    {selectedNameConfig.gender === 'neutral'
+                      ? 'All voices available for neutral names'
+                      : `Showing ${selectedNameConfig.gender} + neutral voices`
+                    } &middot; Same voice for calls &amp; web demo
                   </p>
                 </div>
               </div>

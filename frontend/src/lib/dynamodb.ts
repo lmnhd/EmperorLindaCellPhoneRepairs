@@ -50,6 +50,7 @@ export interface BrandonState {
   notes: string
   special_info?: string
   voice?: string
+  assistant_name?: string
   greeting?: string
   max_discount?: number
   ai_answers_calls?: boolean
@@ -125,7 +126,7 @@ export async function getBrandonState(): Promise<BrandonState> {
 }
 
 export async function updateBrandonState(
-  updates: Partial<Pick<BrandonState, 'status' | 'location' | 'notes' | 'special_info' | 'voice' | 'greeting' | 'max_discount' | 'ai_answers_calls' | 'ai_answers_sms' | 'auto_upsell'>>
+  updates: Partial<Pick<BrandonState, 'status' | 'location' | 'notes' | 'special_info' | 'voice' | 'assistant_name' | 'greeting' | 'max_discount' | 'ai_answers_calls' | 'ai_answers_sms' | 'auto_upsell'>>
 ): Promise<BrandonState> {
   // Fetch current state first (merge approach)
   const current = await getBrandonState()
@@ -137,6 +138,7 @@ export async function updateBrandonState(
     notes: updates.notes ?? current.notes,
     special_info: updates.special_info ?? current.special_info,
     voice: updates.voice ?? current.voice,
+    assistant_name: updates.assistant_name ?? current.assistant_name,
     greeting: updates.greeting ?? current.greeting,
     max_discount: updates.max_discount ?? current.max_discount,
     ai_answers_calls: updates.ai_answers_calls ?? current.ai_answers_calls,
@@ -210,12 +212,26 @@ export async function getAllLeads(): Promise<RepairLead[]> {
   const result: ScanCommandOutput = await docClient.send(
     new ScanCommand({
       TableName: REPAIRS_TABLE,
+      // Exclude chat logs (which have CHATLOG- prefix)
+      FilterExpression: 'NOT begins_with(lead_id, :prefix)',
+      ExpressionAttributeValues: { ':prefix': 'CHATLOG-' },
     })
   )
 
-  // Sort by timestamp descending (newest first)
-  const leads = (result.Items ?? []) as RepairLead[]
-  return leads.sort((a, b) => b.timestamp - a.timestamp)
+  const allLeads = (result.Items ?? []) as RepairLead[]
+  
+  // Deduplicate by lead_id, keeping only the most recent (highest timestamp)
+  const leadMap = new Map<string, RepairLead>()
+  for (const lead of allLeads) {
+    const existing = leadMap.get(lead.lead_id)
+    if (!existing || lead.timestamp > existing.timestamp) {
+      leadMap.set(lead.lead_id, lead)
+    }
+  }
+  
+  // Convert back to array and sort by timestamp descending (newest first)
+  const uniqueLeads = Array.from(leadMap.values())
+  return uniqueLeads.sort((a, b) => b.timestamp - a.timestamp)
 }
 
 export async function getAvailableSlots(date: string): Promise<string[]> {

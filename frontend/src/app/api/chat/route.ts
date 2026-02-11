@@ -109,7 +109,7 @@ function buildSystemPrompt(state: BrandonState, persona: PersonaKey = 'laidback'
     ? `\n\n--- OWNER BULLETIN (IMPORTANT — apply this context naturally) ---\n${specialInfo}\n--- END BULLETIN ---\nWeave the above info into conversations when relevant. Don't read it verbatim — reference deals, events, closures, or updates naturally when the topic fits. If a bulletin mentions a closure or schedule change, proactively inform the customer.`
     : ''
 
-  return `You are LINDA (Lifestyle-Integrated Network Dispatch Assistant), the AI receptionist for EmperorLinda Cell Phone Repairs — a premium mobile repair shop run by Brandon in Jacksonville, FL.
+  return `You are ${(state as BrandonState & { assistant_name?: string }).assistant_name || 'LINDA'} (Lifestyle-Integrated Network Dispatch Assistant), the AI receptionist for EmperorLinda Cell Phone Repairs — a premium mobile repair shop run by Brandon in Jacksonville, FL.
 
 ${personalityBlock}
 
