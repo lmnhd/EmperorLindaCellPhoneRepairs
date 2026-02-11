@@ -1,0 +1,108 @@
+{
+  "functions": [
+    {
+      "type": "function",
+      "function": {
+        "name": "check_availability",
+        "description": "Check if a repair slot is available on a given date. Returns available time slots.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "date": {
+              "type": "string",
+              "description": "Date to check availability for, in YYYY-MM-DD format (e.g., '2026-02-11')"
+            }
+          },
+          "required": ["date"],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "book_slot",
+        "description": "Book a repair appointment slot for a customer. Records lead in DynamoDB.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "date": {
+              "type": "string",
+              "description": "Appointment date in YYYY-MM-DD format"
+            },
+            "time": {
+              "type": "string",
+              "description": "Appointment time (e.g., '2:00 PM', '3:30 PM')"
+            },
+            "phone": {
+              "type": "string",
+              "description": "Customer phone number in E.164 format (e.g., '+19042520927')"
+            },
+            "repair_type": {
+              "type": "string",
+              "description": "Type of repair (e.g., 'screen', 'battery', 'charging_port', 'other')"
+            },
+            "device": {
+              "type": "string",
+              "description": "Device model (e.g., 'iPhone 14 Pro', 'Samsung Galaxy S23')"
+            }
+          },
+          "required": ["date", "time", "phone", "repair_type"],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "authorize_discount",
+        "description": "Request authorization for a customer discount. Brandon must approve discounts over 15%.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "discount_percent": {
+              "type": "number",
+              "description": "Discount percentage requested (e.g., 10, 15, 20)"
+            },
+            "reason": {
+              "type": "string",
+              "description": "Reason for discount (e.g., 'repeat_customer', 'referral', 'bulk_repair', 'service_recovery')"
+            },
+            "phone": {
+              "type": "string",
+              "description": "Customer phone number"
+            }
+          },
+          "required": ["discount_percent", "reason", "phone"],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "log_upsell",
+        "description": "Log an upsell attempt (screen protector, phone case, etc.). Tracks conversion metrics.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "upsell_item": {
+              "type": "string",
+              "description": "Item offered (e.g., 'screen_protector', 'phone_case', 'warranty_extension')"
+            },
+            "accepted": {
+              "type": "boolean",
+              "description": "Whether customer accepted the upsell"
+            },
+            "phone": {
+              "type": "string",
+              "description": "Customer phone number"
+            }
+          },
+          "required": ["upsell_item", "accepted", "phone"],
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}
