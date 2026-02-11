@@ -1,0 +1,115 @@
+# Environment Variables
+.env
+.env.local
+.env*.local
+.env.*.local
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv/
+venv/
+ENV/
+env/
+.venv3/
+env3/
+
+# Node / Frontend
+node_modules/
+/frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Next.js
+/frontend/.next/
+/frontend/out/
+/frontend/dist/
+/frontend/.next-env.d.ts
+/frontend/next-env.d.ts
+/frontend/tsconfig.tsbuildinfo
+
+# Build artifacts
+*.tsbuildinfo
+.turbo/
+dist/
+build/
+
+# Testing
+.nyc_output/
+coverage/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# AWS / Lambda
+.serverless/
+.sam/
+sam-tests/
+sam-outputs.json
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# OS specific
+Thumbs.db
+.DS_Store
+
+# Deployment artifacts (generated)
+/backend/deploy/*.zip
+/backend/deploy/*.cfg
+
+# Lambda URLs and local configs (sensitive/generated)
+/backend/LAMBDA_URLS.json
+/backend/.env
+
+# Test outputs (generated)
+/backend/e2e_test_results.json
+/backend/test_results.json
+
+# Editor generated files
+.vscode/settings.json

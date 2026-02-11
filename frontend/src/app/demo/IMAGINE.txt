@@ -1,0 +1,9 @@
+This is how I want the Demo page to work. Please map out what will be needed to complete.
+
+1. I provide, among other materials, a QR code that links the client to a'/voicedemo' page of the app that presents a sleek yet simple UI that displays an emulated 'Google Maps Call' button (simulating the button a user would press to call the shop).
+2. When the button is clicked that app switches into 'Voice Chat' mode where the user can actualy use the webapi microphone and voice chat with the gpt pipeline we currently have set up.
+3. The AI will prompt the user about the shop status and ask if it can schedule a repair, and the type of service (on-site, remote). The AI will also be well instructed to be conversational within the scope of the business and the Owner (Brandon); I expect the owner to do a deep analysis with the AI over voice before he decides to go with our system. THE AI VOICE MUST BE FULL FUNCTIONING!!!
+4.The experience should feel as much as possible like a real live phone call conversation with the same AI - which is what we are really selling!
+5. If the user makes any test schedule requests, the agent should do so as it would in production and should be present in the dashboard.
+6. We set up the Voice API FOR THIS VERY REASON - I NEED IT PRODUCTIOIN READY FOR THE POC!!!!!!
+7. Lets give the assistant a more 'Laid back' persona, and options to change this to 2 alternate personas! This is a 'Urban' business, I want to give them options!

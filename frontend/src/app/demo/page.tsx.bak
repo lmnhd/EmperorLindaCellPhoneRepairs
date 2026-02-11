@@ -1,0 +1,574 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
+import {
+  Smartphone,
+  ArrowLeft,
+  Play,
+  ChevronRight,
+  MessageSquare,
+  Phone,
+  User,
+  Clock,
+  CheckCircle,
+  ArrowRight,
+  Send,
+  Zap,
+  Calendar,
+  Bell,
+  Wrench,
+  Dumbbell,
+  Eye,
+  RotateCcw,
+} from 'lucide-react'
+
+/** Step in the demo walkthrough */
+interface DemoStep {
+  id: number
+  phase: 'intro' | 'set-status' | 'customer-sms' | 'ai-responds' | 'customer-books' | 'check-dashboard' | 'complete'
+  title: string
+  description: string
+  icon: typeof Play
+}
+
+const DEMO_STEPS: DemoStep[] = [
+  { id: 0, phase: 'intro', title: 'Start Demo', description: "See how LINDA handles customers while you're away", icon: Play },
+  { id: 1, phase: 'set-status', title: 'Set Your Status', description: "You're heading to the gym. Set your status so LINDA knows.", icon: Dumbbell },
+  { id: 2, phase: 'customer-sms', title: 'Customer Texts', description: 'A customer sends an SMS asking about screen repairs.', icon: MessageSquare },
+  { id: 3, phase: 'ai-responds', title: 'LINDA Responds', description: 'LINDA automatically replies with context about your availability.', icon: Zap },
+  { id: 4, phase: 'customer-books', title: 'Customer Books', description: 'The customer asks to book — LINDA handles the scheduling.', icon: Calendar },
+  { id: 5, phase: 'check-dashboard', title: 'Check Dashboard', description: 'Back from the gym — see the new lead in your dashboard.', icon: Bell },
+  { id: 6, phase: 'complete', title: 'Done!', description: 'LINDA turned an SMS into a booked appointment while you worked out.', icon: CheckCircle },
+]
+
+interface SimSMS {
+  from: 'customer' | 'linda'
+  text: string
+  time: string
+}
+
+export default function DemoPage() {
+  const [currentStep, setCurrentStep] = useState(0)
+  const [isAnimating, setIsAnimating] = useState(false)
+  const [smsThread, setSmsThread] = useState<SimSMS[]>([])
+  const [brandonStatus, setBrandonStatus] = useState<'working' | 'gym'>('working')
+  const [showStatusConfirm, setShowStatusConfirm] = useState(false)
+  const [dashboardLead, setDashboardLead] = useState(false)
+  const [typingVisible, setTypingVisible] = useState(false)
+  const phoneRef = useRef<HTMLDivElement>(null)
+
+  const step = DEMO_STEPS[currentStep]
+
+  const simulateTyping = (callback: () => void, delay: number = 1500) => {
+    setTypingVisible(true)
+    setTimeout(() => {
+      setTypingVisible(false)
+      callback()
+    }, delay)
+  }
+
+  const advanceStep = () => {
+    if (isAnimating || currentStep >= DEMO_STEPS.length - 1) return
+    const nextStep = currentStep + 1
+    setIsAnimating(true)
+
+    switch (DEMO_STEPS[nextStep].phase) {
+      case 'set-status':
+        setTimeout(() => {
+          setCurrentStep(nextStep)
+          setIsAnimating(false)
+        }, 300)
+        break
+
+      case 'customer-sms':
+        setBrandonStatus('gym')
+        setShowStatusConfirm(true)
+        setTimeout(() => {
+          setShowStatusConfirm(false)
+          setCurrentStep(nextStep)
+          // Customer sends first message
+          simulateTyping(() => {
+            setSmsThread([{
+              from: 'customer',
+              text: 'Hey, do you fix cracked phone screens? My iPhone 15 Pro screen is shattered',
+              time: '2:47 PM',
+            }])
+          }, 800)
+          setIsAnimating(false)
+        }, 1200)
+        break
+
+      case 'ai-responds':
+        setCurrentStep(nextStep)
+        // LINDA responds with context-aware message
+        simulateTyping(() => {
+          setSmsThread(prev => [...prev, {
+            from: 'linda',
+            text: "Hey! Yes, we absolutely fix cracked screens! Brandon is out for about an hour, but spots are filling up fast today. iPhone 15 Pro screen repair is $129 with a 90-day warranty. Want me to book you a slot for when he's back?",
+            time: '2:47 PM',
+          }])
+          setIsAnimating(false)
+        }, 2000)
+        break
+
+      case 'customer-books':
+        setCurrentStep(nextStep)
+        // Customer responds wanting to book
+        simulateTyping(() => {
+          setSmsThread(prev => [...prev, {
+            from: 'customer',
+            text: "Yeah that works! Book me for 4pm today please",
+            time: '2:48 PM',
+          }])
+          // LINDA confirms
+          setTimeout(() => {
+            simulateTyping(() => {
+              setSmsThread(prev => [...prev, {
+                from: 'linda',
+                text: "You're all set! Booked for 4:00 PM today. Your confirmation: LEAD-20260210-144812. Brandon will have your iPhone 15 Pro ready to go. By the way — want us to add a tempered glass screen protector for $15? Prevents future cracks!",
+                time: '2:48 PM',
+              }])
+              setIsAnimating(false)
+            }, 1800)
+          }, 600)
+        }, 1000)
+        break
+
+      case 'check-dashboard':
+        setCurrentStep(nextStep)
+        setDashboardLead(true)
+        setIsAnimating(false)
+        break
+
+      case 'complete':
+        setCurrentStep(nextStep)
+        setIsAnimating(false)
+        break
+
+      default:
+        setCurrentStep(nextStep)
+        setIsAnimating(false)
+    }
+  }
+
+  const resetDemo = () => {
+    setCurrentStep(0)
+    setSmsThread([])
+    setBrandonStatus('working')
+    setShowStatusConfirm(false)
+    setDashboardLead(false)
+    setTypingVisible(false)
+    setIsAnimating(false)
+  }
+
+  return (
+    <main className="min-h-screen bg-emperor-black">
+      {/* Top Bar */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-emperor-black/80 border-b border-emperor-gold/10">
+        <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="p-2 -ml-2 rounded-lg hover:bg-emperor-cream/5 transition-colors">
+              <ArrowLeft className="w-4 h-4 text-emperor-cream/50" />
+            </Link>
+            <div className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-emperor-gold" />
+              <span className="font-display font-semibold text-sm">Live Demo</span>
+            </div>
+          </div>
+          <button onClick={resetDemo} className="flex items-center gap-1.5 text-xs text-emperor-cream/40 hover:text-emperor-cream/60 transition-colors font-mono">
+            <RotateCcw className="w-3.5 h-3.5" />
+            Restart
+          </button>
+        </div>
+      </header>
+
+      <div className="max-w-4xl mx-auto px-6 py-8">
+
+        {/* Progress Bar */}
+        <div className="flex items-center gap-1 mb-10">
+          {DEMO_STEPS.map((s, i) => (
+            <div
+              key={s.id}
+              className={`h-1 flex-1 rounded-full transition-all duration-500 ${
+                i <= currentStep ? 'bg-emperor-gold' : 'bg-emperor-smoke'
+              }`}
+            />
+          ))}
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-8 items-start">
+
+          {/* Left: Narration + Controls */}
+          <div className="space-y-6">
+            {/* Step Info */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                  currentStep === DEMO_STEPS.length - 1
+                    ? 'bg-accent-emerald/10 border border-accent-emerald/20'
+                    : 'bg-emperor-gold/10 border border-emperor-gold/20'
+                }`}>
+                  <step.icon className={`w-4 h-4 ${
+                    currentStep === DEMO_STEPS.length - 1 ? 'text-accent-emerald' : 'text-emperor-gold'
+                  }`} />
+                </div>
+                <span className="text-xs font-mono text-emperor-cream/30">
+                  Step {currentStep + 1} of {DEMO_STEPS.length}
+                </span>
+              </div>
+              <h2 className="font-display text-2xl font-bold text-emperor-cream">
+                {step.title}
+              </h2>
+              <p className="text-emperor-cream/50 leading-relaxed">
+                {step.description}
+              </p>
+            </div>
+
+            {/* Context Cards */}
+            {step.phase === 'set-status' && (
+              <div className="glass-panel p-5 space-y-3 animate-fade-up">
+                <p className="text-sm text-emperor-cream/60">
+                  Tap the button below to set your status to <span className="text-emperor-gold font-medium">&quot;At the Gym&quot;</span>.
+                  LINDA will use this context when talking to customers.
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-emerald/10 border border-accent-emerald/20 text-accent-emerald text-xs font-mono">
+                    <Wrench className="w-3.5 h-3.5" />
+                    At Shop
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-emperor-cream/20" />
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emperor-gold/10 border border-emperor-gold/20 text-emperor-gold text-xs font-mono">
+                    <Dumbbell className="w-3.5 h-3.5" />
+                    At Gym
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step.phase === 'ai-responds' && (
+              <div className="glass-panel p-5 space-y-2 animate-fade-up">
+                <p className="text-xs font-mono text-emperor-gold/60 uppercase tracking-wide">What LINDA did:</p>
+                <ul className="space-y-1.5 text-sm text-emperor-cream/50">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-accent-emerald mt-0.5 shrink-0" />
+                    Checked Brandon&apos;s status (at the gym)
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-accent-emerald mt-0.5 shrink-0" />
+                    Used scarcity messaging (&quot;spots filling up&quot;)
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-accent-emerald mt-0.5 shrink-0" />
+                    Quoted price with warranty info
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-accent-emerald mt-0.5 shrink-0" />
+                    Offered to book an appointment
+                  </li>
+                </ul>
+              </div>
+            )}
+
+            {step.phase === 'customer-books' && (
+              <div className="glass-panel p-5 space-y-2 animate-fade-up">
+                <p className="text-xs font-mono text-emperor-gold/60 uppercase tracking-wide">LINDA&apos;s actions:</p>
+                <ul className="space-y-1.5 text-sm text-emperor-cream/50">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-accent-emerald mt-0.5 shrink-0" />
+                    Called <code className="px-1 py-0.5 rounded bg-emperor-smoke text-emperor-gold text-xs font-mono">book_slot()</code> function
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-accent-emerald mt-0.5 shrink-0" />
+                    Created lead in DynamoDB with ID
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-accent-emerald mt-0.5 shrink-0" />
+                    Sent confirmation with details
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-accent-emerald mt-0.5 shrink-0" />
+                    Offered screen protector upsell ($15)
+                  </li>
+                </ul>
+              </div>
+            )}
+
+            {step.phase === 'check-dashboard' && (
+              <div className="glass-panel p-5 space-y-3 animate-fade-up">
+                <p className="text-xs font-mono text-emperor-gold/60 uppercase tracking-wide">New Lead Booked</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between text-emperor-cream/50">
+                    <span>Device</span>
+                    <span className="text-emperor-cream/80 font-medium">iPhone 15 Pro</span>
+                  </div>
+                  <div className="flex items-center justify-between text-emperor-cream/50">
+                    <span>Repair</span>
+                    <span className="text-emperor-cream/80 font-medium">Screen Replacement</span>
+                  </div>
+                  <div className="flex items-center justify-between text-emperor-cream/50">
+                    <span>Time</span>
+                    <span className="text-emperor-cream/80 font-medium">Today, 4:00 PM</span>
+                  </div>
+                  <div className="flex items-center justify-between text-emperor-cream/50">
+                    <span>Revenue</span>
+                    <span className="text-accent-emerald font-mono font-medium">$129.00</span>
+                  </div>
+                  <div className="flex items-center justify-between text-emperor-cream/50">
+                    <span>Lead ID</span>
+                    <span className="text-emperor-gold font-mono text-xs">LEAD-20260210-144812</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step.phase === 'complete' && (
+              <div className="glass-panel p-5 animate-fade-up border-accent-emerald/20">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-full bg-accent-emerald/10 flex items-center justify-center">
+                    <CheckCircle className="w-5 h-5 text-accent-emerald" />
+                  </div>
+                  <div>
+                    <p className="font-display font-semibold text-accent-emerald">Revenue captured</p>
+                    <p className="text-xs text-emperor-cream/30 font-mono">While you were at the gym</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mt-4">
+                  <div className="text-center p-3 rounded-lg bg-emperor-cream/[0.03]">
+                    <p className="text-lg font-display font-bold text-emperor-cream">$129</p>
+                    <p className="text-[10px] text-emperor-cream/30 font-mono">Repair</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-emperor-cream/[0.03]">
+                    <p className="text-lg font-display font-bold text-emperor-cream">$15</p>
+                    <p className="text-[10px] text-emperor-cream/30 font-mono">Upsell</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-accent-emerald/[0.06]">
+                    <p className="text-lg font-display font-bold text-accent-emerald">$144</p>
+                    <p className="text-[10px] text-emperor-cream/30 font-mono">Total</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex gap-3">
+                  <Link href="/dashboard" className="btn-emperor text-sm flex-1 text-center">
+                    Open Dashboard
+                  </Link>
+                  <button onClick={resetDemo} className="btn-ghost text-sm flex-1">
+                    Run Again
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Advance Button */}
+            {step.phase !== 'complete' && (
+              <button
+                onClick={advanceStep}
+                disabled={isAnimating}
+                className="btn-emperor w-full flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+              >
+                {currentStep === 0 ? (
+                  <>
+                    <Play className="w-4 h-4" />
+                    Start Walkthrough
+                  </>
+                ) : (
+                  <>
+                    Next Step
+                    <ChevronRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* Right: Phone Simulator */}
+          <div className="flex justify-center lg:sticky lg:top-24" ref={phoneRef}>
+            <div className="w-[320px]">
+              {/* Phone Frame */}
+              <div className="relative bg-emperor-charcoal rounded-[2.5rem] p-3 shadow-2xl shadow-black/40 border border-emperor-gold/10">
+                {/* Notch */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-emperor-charcoal rounded-b-2xl z-10" />
+
+                {/* Screen */}
+                <div className="bg-emperor-black rounded-[2rem] overflow-hidden min-h-[560px] relative">
+                  {/* Status Bar */}
+                  <div className="flex items-center justify-between px-6 pt-3 pb-1 text-[10px] font-mono text-emperor-cream/40">
+                    <span>2:47 PM</span>
+                    <span>EmperorLinda</span>
+                    <span>100%</span>
+                  </div>
+
+                  {/* Phone Content */}
+                  {step.phase === 'intro' && (
+                    <div className="flex flex-col items-center justify-center h-[480px] px-8 text-center">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emperor-gold to-emperor-gold-dark flex items-center justify-center shadow-lg shadow-emperor-gold/20 mb-5">
+                        <Smartphone className="w-8 h-8 text-emperor-black" />
+                      </div>
+                      <h3 className="font-display text-xl font-bold mb-2">LINDA Demo</h3>
+                      <p className="text-xs text-emperor-cream/40 leading-relaxed">
+                        Walk through a real customer interaction.
+                        See exactly how LINDA earns you money while you&apos;re away.
+                      </p>
+                    </div>
+                  )}
+
+                  {step.phase === 'set-status' && (
+                    <div className="px-5 py-6 space-y-4">
+                      <div className="text-center mb-4">
+                        <p className="text-xs font-mono text-emperor-cream/40 mb-2">YOUR STATUS</p>
+                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all duration-500 ${
+                          brandonStatus === 'gym'
+                            ? 'bg-emperor-gold/10 border-emperor-gold/20 text-emperor-gold'
+                            : 'bg-accent-emerald/10 border-accent-emerald/20 text-accent-emerald'
+                        }`}>
+                          {brandonStatus === 'gym' ? <Dumbbell className="w-4 h-4" /> : <Wrench className="w-4 h-4" />}
+                          {brandonStatus === 'gym' ? 'At the Gym' : 'At the Shop'}
+                        </div>
+                      </div>
+
+                      {showStatusConfirm && (
+                        <div className="animate-fade-up bg-accent-emerald/10 border border-accent-emerald/20 rounded-xl p-3 text-center">
+                          <CheckCircle className="w-5 h-5 text-accent-emerald mx-auto mb-1" />
+                          <p className="text-xs text-accent-emerald">Status updated!</p>
+                        </div>
+                      )}
+
+                      <div className="space-y-2 mt-6">
+                        <div className="bg-emperor-slate/40 rounded-xl p-3">
+                          <p className="text-[10px] text-emperor-cream/30 font-mono mb-1">LINDA will tell customers:</p>
+                          <p className="text-xs text-emperor-cream/60 italic">
+                            {brandonStatus === 'gym'
+                              ? '"Brandon is at the gym, back in 1-2 hours. Spots are filling up fast!"'
+                              : '"Brandon is available at the shop. Walk-ins welcome!"'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {(step.phase === 'customer-sms' || step.phase === 'ai-responds' || step.phase === 'customer-books') && (
+                    <div className="flex flex-col h-[500px]">
+                      {/* SMS Header */}
+                      <div className="flex items-center gap-3 px-4 py-3 border-b border-emperor-gold/5">
+                        <div className="w-8 h-8 rounded-full bg-emperor-slate flex items-center justify-center">
+                          <User className="w-4 h-4 text-emperor-cream/40" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-emperor-cream/80">+1 (904) 555-8721</p>
+                          <p className="text-[10px] text-emperor-cream/30 font-mono">Customer</p>
+                        </div>
+                      </div>
+
+                      {/* SMS Messages */}
+                      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                        {smsThread.map((sms, i) => (
+                          <div key={i} className={`chat-bubble-enter flex ${sms.from === 'customer' ? 'justify-start' : 'justify-end'}`}>
+                            <div className={`max-w-[85%] px-3 py-2.5 rounded-2xl text-xs leading-relaxed ${
+                              sms.from === 'customer'
+                                ? 'bg-emperor-slate/60 text-emperor-cream/80 rounded-bl-md'
+                                : 'bg-emperor-gold text-emperor-black rounded-br-md'
+                            }`}>
+                              {sms.from === 'linda' && (
+                                <div className="flex items-center gap-1 mb-1">
+                                  <Zap className="w-2.5 h-2.5" />
+                                  <span className="text-[9px] font-mono font-bold opacity-60">LINDA</span>
+                                </div>
+                              )}
+                              {sms.text}
+                              <div className={`text-[9px] mt-1 text-right ${
+                                sms.from === 'customer' ? 'text-emperor-cream/20' : 'text-emperor-black/40'
+                              }`}>
+                                {sms.time}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+
+                        {typingVisible && (
+                          <div className="flex justify-end chat-bubble-enter">
+                            <div className="bg-emperor-gold/20 rounded-2xl rounded-br-md px-4 py-3">
+                              <div className="flex gap-1">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emperor-gold/60 typing-dot" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-emperor-gold/60 typing-dot" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-emperor-gold/60 typing-dot" />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {step.phase === 'check-dashboard' && (
+                    <div className="px-4 py-4 space-y-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Bell className="w-4 h-4 text-emperor-gold" />
+                        <span className="text-xs font-display font-semibold">New Lead!</span>
+                      </div>
+
+                      {dashboardLead && (
+                        <div className="animate-fade-up glass-panel p-4 border-emperor-gold/20">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="font-mono text-[10px] text-emperor-gold/60">LEAD-20260210-144812</span>
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-accent-blue/10 text-accent-blue border border-accent-blue/20">BOOKED</span>
+                          </div>
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between text-emperor-cream/50">
+                              <span>iPhone 15 Pro</span>
+                              <span className="text-emperor-cream/80">Screen</span>
+                            </div>
+                            <div className="flex justify-between text-emperor-cream/50">
+                              <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> 4:00 PM</span>
+                              <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> Today</span>
+                            </div>
+                            <div className="flex justify-between text-emperor-cream/50">
+                              <span>+1 (904) 555-8721</span>
+                              <span className="text-accent-emerald font-mono">$129</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="mt-4 p-3 bg-accent-emerald/5 border border-accent-emerald/10 rounded-xl">
+                        <p className="text-[11px] text-accent-emerald/80 leading-relaxed">
+                          This lead was captured automatically by LINDA while you were at the gym.
+                          No missed calls. No lost revenue.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {step.phase === 'complete' && (
+                    <div className="flex flex-col items-center justify-center h-[480px] px-8 text-center">
+                      <div className="w-16 h-16 rounded-full bg-accent-emerald/10 flex items-center justify-center mb-5 animate-fade-up">
+                        <CheckCircle className="w-8 h-8 text-accent-emerald" />
+                      </div>
+                      <h3 className="font-display text-xl font-bold mb-2">Demo Complete</h3>
+                      <p className="text-xs text-emperor-cream/40 leading-relaxed">
+                        LINDA turned an SMS into a $144 appointment
+                        while Brandon was at the gym. No effort required.
+                      </p>
+                      <div className="mt-6 w-full space-y-2">
+                        <Link href="/dashboard" className="btn-emperor text-xs w-full block text-center">
+                          See Full Dashboard
+                        </Link>
+                        <Link href="/" className="btn-ghost text-xs w-full block text-center">
+                          Visit Landing Page
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Phone bottom bar */}
+              <div className="flex justify-center mt-2">
+                <div className="w-32 h-1 rounded-full bg-emperor-cream/10" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  )
+}

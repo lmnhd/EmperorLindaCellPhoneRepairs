@@ -72,25 +72,36 @@ def update_state(state_data: dict) -> dict:
     try:
         table = dynamodb.Table(BRANDON_STATE_LOG_TABLE)
         
-        # Ensure required fields
-        if not state_data.get('status') and not state_data.get('location') and not state_data.get('notes'):
-            return create_response(400, {
-                'status': 'error',
-                'message': 'At least one of status, location, or notes must be provided'
-            })
-        
         # Fetch current state
         response = table.get_item(Key={'state_id': 'CURRENT'})
         current_state = response.get('Item', {})
         
-        # Update with new values
+        # Update with new values (preserve all fields)
         current_state['state_id'] = 'CURRENT'
+        
+        # Core state fields
         if 'status' in state_data:
             current_state['status'] = state_data['status']
         if 'location' in state_data:
             current_state['location'] = state_data['location']
         if 'notes' in state_data:
             current_state['notes'] = state_data['notes']
+        if 'special_info' in state_data:
+            current_state['special_info'] = state_data['special_info']
+        if 'voice' in state_data:
+            current_state['voice'] = state_data['voice']
+        
+        # Assistant config fields
+        if 'greeting' in state_data:
+            current_state['greeting'] = state_data['greeting']
+        if 'max_discount' in state_data:
+            current_state['max_discount'] = state_data['max_discount']
+        if 'ai_answers_calls' in state_data:
+            current_state['ai_answers_calls'] = state_data['ai_answers_calls']
+        if 'ai_answers_sms' in state_data:
+            current_state['ai_answers_sms'] = state_data['ai_answers_sms']
+        if 'auto_upsell' in state_data:
+            current_state['auto_upsell'] = state_data['auto_upsell']
         
         current_state['updated_at'] = int(datetime.utcnow().timestamp())
         
@@ -151,7 +162,7 @@ def handler(event, context):
     logger.info(f"Event: {json.dumps(event)}")
     
     try:
-        method = event.get('httpMethod', 'GET').upper()
+        method = (event.get('requestContext', {}).get('http', {}).get('method') or event.get('httpMethod', 'GET')).upper()
         
         # Handle CORS preflight
         if method == 'OPTIONS':

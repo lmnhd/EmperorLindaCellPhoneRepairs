@@ -237,11 +237,22 @@ def handler(event, context):
         logger.info(f"Brandon state: {brandon_state}")
         
         # Prepare context for OpenAI
+        special_info = brandon_state.get('special_info', '').strip()
+        special_info_block = ''
+        if special_info:
+            special_info_block = f"""
+
+--- OWNER BULLETIN (IMPORTANT — apply this context naturally) ---
+{special_info}
+--- END BULLETIN ---
+Weave the above info into conversations when relevant. Don't read it verbatim — reference deals, events, or updates naturally when the topic fits. If a bulletin mentions a closure or schedule change, proactively inform the customer."""
+
         context_prompt = f"""
 You are LINDA, an AI assistant for EmperorLinda Cell Phone Repairs.
 Brandon's current status: {brandon_state.get('status', 'available')}
 Brandon's location: {brandon_state.get('location', 'shop')}
 Brandon's notes: {brandon_state.get('notes', 'None')}
+{special_info_block}
 
 Customer message: {message_body}
 Customer phone: {from_phone}
@@ -255,37 +266,52 @@ Use available functions to:
 Respond naturally and helpfully. If booking, always confirm the details.
 """
         
-        # Call OpenAI with function calling
-        response = openai_client.beta.assistants.messages.create(
+        # Call OpenAI Responses API with function calling
+        response = openai_client.responses.create(
             model="gpt-4o",
-            messages=[
-                {"role": "user", "content": context_prompt}
-            ],
-            tools=[
-                {"type": "function", "function": schema}
-                for schema in FUNCTION_SCHEMAS
-            ]
+            instructions=context_prompt,
+            input=message_body,
+            tools=FUNCTION_SCHEMAS,
+            store=False  # Stateless for Twilio webhook
         )
         
-        # Extract response text (may have multiple content blocks)
-        response_text = ""
-        for block in response.content:
-            if hasattr(block, 'text'):
-                response_text = block.text
-                break
-        
-        # Handle tool use if present
-        for block in response.content:
-            if block.type == "tool_use":
-                func_name = block.name
-                args = json.loads(block.input) if isinstance(block.input, str) else block.input
-                
+        # Handle function calls in a loop (Responses API agentic pattern)
+        max_iterations = 5
+        iteration = 0
+        while iteration < max_iterations:
+            iteration += 1
+            
+            # Check for function calls in the output
+            function_calls = [item for item in response.output if item.type == 'function_call']
+            
+            if not function_calls:
+                break  # No more function calls, we have the final response
+            
+            # Execute each function call and collect results
+            function_results = []
+            for fc in function_calls:
+                func_name = fc.name
+                args = json.loads(fc.arguments) if isinstance(fc.arguments, str) else fc.arguments
                 func_result = execute_function(func_name, args)
-                logger.info(f"Function result: {func_result}")
-                
-                # Update response with function result
-                if 'message' in func_result:
-                    response_text += f"\n{func_result['message']}"
+                logger.info(f"Function {func_name} result: {func_result}")
+                function_results.append({
+                    "type": "function_call_output",
+                    "call_id": fc.call_id,
+                    "output": json.dumps(func_result, cls=DecimalEncoder)
+                })
+            
+            # Send function results back to get the final response
+            response = openai_client.responses.create(
+                model="gpt-4o",
+                instructions=context_prompt,
+                input=function_results,
+                tools=FUNCTION_SCHEMAS,
+                store=False,
+                previous_response_id=response.id
+            )
+        
+        # Extract the final text response
+        response_text = response.output_text or "I'm having trouble responding right now. Please try again."
         
         # Prepare TwiML response
         twiml_response = MessagingResponse()

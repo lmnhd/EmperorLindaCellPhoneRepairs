@@ -127,8 +127,8 @@ def handler(event, context):
     logger.info(f"Event: {json.dumps(event)}")
     
     try:
-        method = event.get('httpMethod', 'GET').upper()
-        path = event.get('path', '/')
+        method = (event.get('requestContext', {}).get('http', {}).get('method') or event.get('httpMethod', 'GET')).upper()
+        path = event.get('rawPath', event.get('path', '/'))
         
         # Handle CORS preflight
         if method == 'OPTIONS':
