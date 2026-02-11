@@ -12,6 +12,7 @@ interface StateUpdateBody {
   special_info?: string
   voice?: string
   assistant_name?: string
+  persona?: string
   greeting?: string
   max_discount?: number
   ai_answers_calls?: boolean
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
       special_info: body.special_info,
       voice: body.voice,
       assistant_name: body.assistant_name,
+      persona: body.persona,
       greeting: body.greeting,
       max_discount: body.max_discount,
       ai_answers_calls: body.ai_answers_calls,

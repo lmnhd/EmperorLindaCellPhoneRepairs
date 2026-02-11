@@ -51,6 +51,7 @@ export interface BrandonState {
   special_info?: string
   voice?: string
   assistant_name?: string
+  persona?: string
   greeting?: string
   max_discount?: number
   ai_answers_calls?: boolean

@@ -25,6 +25,7 @@ import {
   Shield,
   Zap,
   ScrollText,
+  Play,
 } from 'lucide-react'
 import ChatLogOverlay from '@/components/ChatLogOverlay'
 
@@ -62,6 +63,12 @@ const ASSISTANT_NAMES: AssistantNameOption[] = [
   { value: 'Keisha', label: 'Keisha', gender: 'female' },
   { value: 'Darius', label: 'Darius', gender: 'male' },
   { value: 'Alex', label: 'Alex', gender: 'neutral' },
+]
+
+const PERSONA_OPTIONS = [
+  { value: 'professional', label: 'Professional 💼', description: 'Polished, confident, corporate' },
+  { value: 'laidback', label: 'Laid Back 😎', description: 'Chill, neighborhood, slang' },
+  { value: 'hustler', label: 'Hustler 🔥', description: 'High-energy, urgency, closer' },
 ]
 
 /** Default voice per gender — auto-selects when name changes */
@@ -114,6 +121,7 @@ interface AssistantConfig {
   specialInfo: string
   voice: VoiceName
   assistantName: string
+  persona: string
 }
 
 export default function DashboardPage() {
@@ -132,15 +140,42 @@ export default function DashboardPage() {
     specialInfo: "",
     voice: 'nova',
     assistantName: 'Linda',
+    persona: 'professional',
   })
 
   // Derive the selected name's gender and available voices
   const selectedNameConfig = ASSISTANT_NAMES.find(n => n.value === config.assistantName) ?? ASSISTANT_NAMES[0]
   const availableVoices = getVoicesForGender(selectedNameConfig.gender)
 
+  // Test voice with sample audio
+  const testVoice = async (voiceName: string) => {
+    setTestingVoice(voiceName)
+    try {
+      const sampleText = `Hey, this is ${config.assistantName} from EmperorLinda Cell Phone Repairs. How can I help you today?`
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: sampleText, voice: voiceName }),
+      })
+      if (!response.ok) throw new Error('TTS failed')
+      const audioBlob = await response.blob()
+      const audioUrl = URL.createObjectURL(audioBlob)
+      const audio = new Audio(audioUrl)
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl)
+        setTestingVoice(null)
+      }
+      await audio.play()
+    } catch (error) {
+      console.error('Voice test failed:', error)
+      setTestingVoice(null)
+    }
+  }
+
   const [leads, setLeads] = useState<Lead[]>([])
   const [leadsLoading, setLeadsLoading] = useState(true)
   const [chatLogOpen, setChatLogOpen] = useState(false)
+  const [testingVoice, setTestingVoice] = useState<string | null>(null)
 
   // Load leads from DynamoDB on mount + auto-refresh every 15s
   useEffect(() => {
@@ -190,6 +225,7 @@ export default function DashboardPage() {
             ...prev,
             voice: state.voice || prev.voice,
             assistantName: state.assistant_name || prev.assistantName,
+            persona: state.persona || prev.persona,
             specialInfo: state.special_info || '',
             greeting: state.greeting || prev.greeting,
             maxDiscount: state.max_discount !== undefined ? state.max_discount : prev.maxDiscount,
@@ -229,6 +265,7 @@ export default function DashboardPage() {
           special_info: config.specialInfo,
           voice: config.voice,
           assistant_name: config.assistantName,
+          persona: config.persona,
           greeting: config.greeting,
           max_discount: config.maxDiscount,
           ai_answers_calls: config.aiAnswersCalls,
@@ -489,18 +526,31 @@ export default function DashboardPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
                     {availableVoices.map((v) => (
-                      <button
-                        key={v.value}
-                        onClick={() => { setConfig(prev => ({ ...prev, voice: v.value })); setStatusSaved(false); }}
-                        className={`px-3 py-2 rounded-lg text-left transition-all border ${
-                          config.voice === v.value
-                            ? 'bg-emperor-gold/10 border-emperor-gold/30 text-emperor-gold'
-                            : 'border-emperor-cream/5 hover:bg-emperor-cream/5 text-emperor-cream/40'
-                        }`}
-                      >
-                        <span className="text-xs font-semibold block">{v.label}</span>
-                        <span className="text-[10px] opacity-60 block leading-tight">{v.description}</span>
-                      </button>
+                      <div key={v.value} className="relative">
+                        <button
+                          onClick={() => { setConfig(prev => ({ ...prev, voice: v.value })); setStatusSaved(false); }}
+                          className={`w-full px-3 py-2 pr-10 rounded-lg text-left transition-all border ${
+                            config.voice === v.value
+                              ? 'bg-emperor-gold/10 border-emperor-gold/30 text-emperor-gold'
+                              : 'border-emperor-cream/5 hover:bg-emperor-cream/5 text-emperor-cream/40'
+                          }`}
+                        >
+                          <span className="text-xs font-semibold block">{v.label}</span>
+                          <span className="text-[10px] opacity-60 block leading-tight">{v.description}</span>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); testVoice(v.value); }}
+                          disabled={testingVoice === v.value}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md hover:bg-emperor-gold/20 transition-colors disabled:opacity-50"
+                          title={`Test ${v.label} voice`}
+                        >
+                          {testingVoice === v.value ? (
+                            <div className="w-3 h-3 border border-emperor-gold/30 border-t-emperor-gold rounded-full animate-spin" />
+                          ) : (
+                            <Play className="w-3 h-3 text-emperor-gold" />
+                          )}
+                        </button>
+                      </div>
                     ))}
                   </div>
                   <p className="text-[10px] text-emperor-cream/20 mt-1.5 font-mono">
@@ -508,6 +558,33 @@ export default function DashboardPage() {
                       ? 'All voices available for neutral names'
                       : `Showing ${selectedNameConfig.gender} + neutral voices`
                     } &middot; Same voice for calls &amp; web demo
+                  </p>
+                </div>
+
+                {/* Persona Selector */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Zap className="w-4 h-4 text-emperor-gold" />
+                    <span className="text-sm text-emperor-cream/70">Personality Mode</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {PERSONA_OPTIONS.map((p) => (
+                      <button
+                        key={p.value}
+                        onClick={() => { setConfig(prev => ({ ...prev, persona: p.value })); setStatusSaved(false); }}
+                        className={`px-3 py-2 rounded-lg text-left transition-all border ${
+                          config.persona === p.value
+                            ? 'bg-emperor-gold/10 border-emperor-gold/30 text-emperor-gold'
+                            : 'border-emperor-cream/5 hover:bg-emperor-cream/5 text-emperor-cream/40'
+                        }`}
+                      >
+                        <span className="text-xs font-semibold block">{p.label}</span>
+                        <span className="text-[10px] opacity-60 block leading-tight">{p.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-emperor-cream/20 mt-1.5 font-mono">
+                    Sets conversation style for all channels
                   </p>
                 </div>
               </div>

@@ -64,7 +64,7 @@ The owner controls everything from a single **admin dashboard** ("Brandon's Cock
        ▼                  ▼                  ▼
 ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐
 │   OpenAI     │  │  AWS         │  │  Twilio         │
-│  GPT-5 Nano  │  │  DynamoDB    │  │  Programmable   │
+│  GPT-5 Mini  │  │  DynamoDB    │  │  Programmable   │
 │   TTS-1      │  │  (2 Tables)  │  │  Voice + SMS    │
 └──────────────┘  └──────────────┘  └─────────────────┘
           │
@@ -132,7 +132,7 @@ Reusable chat widget embedded on the landing page:
 | Feature | Description |
 |---------|-------------|
 | **Auto-Greeting** | Immediate welcome message from the AI on load |
-| **Real OpenAI Integration** | Every message goes through GPT-5 Nano with function calling |
+| **Real OpenAI Integration** | Every message goes through GPT-5 Mini with function calling |
 | **Phone Fallback** | Header displays click-to-call phone number |
 | **Session Persistence** | Unique session ID for the browser tab lifecycle |
 | **Chat Log Persistence** | Every conversation saved to DynamoDB automatically |
@@ -214,7 +214,7 @@ A comprehensive single-page control center for the business owner.
 
 | Parameter | Value |
 |-----------|-------|
-| **Model** | OpenAI GPT-5 Nano |
+| **Model** | OpenAI GPT-5 Mini |
 | **Temperature** | Default (auto) |
 | **Max Iterations** | 5 function-call loops per conversation turn |
 | **Context Window** | 42 messages max, auto-trimmed (keeps system + last 40) |
@@ -461,7 +461,7 @@ Single-row table (PK: `state_id = 'CURRENT'`):
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/chat` | POST | Core AI conversation endpoint (GPT-5 Nano). Accepts message, sessionId, phone, persona, and status overrides. Returns AI reply with function calling |
+| `/api/chat` | POST | Core AI conversation endpoint (GPT-5 Mini). Accepts message, sessionId, phone, persona, and status overrides. Returns AI reply with function calling |
 | `/api/state` | GET | Fetch owner's current state from DynamoDB |
 | `/api/state` | POST | Update owner's state (status, location, notes, voice, name, all config) |
 | `/api/leads` | GET | Retrieve all bookings from DynamoDB (newest first, deduplicated) |
@@ -493,7 +493,7 @@ Single-row table (PK: `state_id = 'CURRENT'`):
 | **Tailwind CSS** | Latest | Utility-first styling |
 | **Lucide React** | Latest | Icon library (40+ icons used) |
 | **AWS SDK v3** | `@aws-sdk/client-dynamodb`, `@aws-sdk/lib-dynamodb` | Direct DynamoDB access from API routes |
-| **OpenAI SDK** | Latest | GPT-5 Nano chat completions + TTS-1 audio generation |
+| **OpenAI SDK** | Latest | GPT-5 Mini chat completions + TTS-1 audio generation |
 | **Web Speech API** | Browser native | Speech recognition in voice demo |
 
 ### Backend
@@ -515,7 +515,7 @@ Single-row table (PK: `state_id = 'CURRENT'`):
 | **AWS IAM** | Role-based access control |
 | **Vercel** | Frontend hosting (Next.js optimized) |
 | **Twilio** | Phone number, SMS, Programmable Voice |
-| **OpenAI** | GPT-5 Nano (chat, $0.05/$0.40 per 1M tokens), TTS-1 (voice synthesis) |
+| **OpenAI** | GPT-5 Mini (chat, $0.25/$2.00 per 1M tokens), TTS-1 (voice synthesis) |
 
 ---
 

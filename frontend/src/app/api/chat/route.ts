@@ -88,7 +88,7 @@ const PERSONAS: Record<PersonaKey, string> = {
 // LINDA system prompt
 // ---------------------------------------------------------------------------
 
-function buildSystemPrompt(state: BrandonState, persona: PersonaKey = 'laidback'): string {
+function buildSystemPrompt(state: BrandonState, persona: PersonaKey = 'professional'): string {
   const statusLabel =
     state.status === 'gym'
       ? 'At the gym — will be back in 1-2 hours'
@@ -102,7 +102,7 @@ function buildSystemPrompt(state: BrandonState, persona: PersonaKey = 'laidback'
               ? 'After hours — open tomorrow at 9 AM'
               : 'Available at the shop'
 
-  const personalityBlock = PERSONAS[persona] ?? PERSONAS.laidback
+  const personalityBlock = PERSONAS[persona] ?? PERSONAS.professional
 
   const specialInfo = (state as BrandonState & { special_info?: string }).special_info?.trim() ?? ''
   const specialInfoBlock = specialInfo
@@ -346,7 +346,7 @@ export async function POST(req: NextRequest) {
 
     // Fetch real state from DynamoDB
     const currentState = await getBrandonState()
-    const persona: PersonaKey = body.persona ?? 'laidback'
+    const persona: PersonaKey = body.persona ?? (currentState.persona as PersonaKey) ?? 'professional'
 
     // Session management
     const sessionId = body.sessionId || 'default'
@@ -371,7 +371,7 @@ export async function POST(req: NextRequest) {
       iterations++
 
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: 'gpt-5-mini',
         messages: history as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         tools,
         tool_choice: 'auto',

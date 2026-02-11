@@ -1,2 +1,2 @@
 1. Model Upgrades (LLM, Voice)
-2. 
+2. Pesonality Optimization (Create Perfect Character and Vocabulary)
