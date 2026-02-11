@@ -471,7 +471,7 @@ export default function DashboardPage() {
                 <span className="text-xs text-emperor-cream/30 font-mono">Real-time from DynamoDB</span>
               </div>
 
-              <div className="divide-y divide-emperor-gold/5">
+              <div className="divide-y divide-emperor-gold/5 max-h-[600px] overflow-y-auto">
                 {leads.map((lead) => (
                   <div
                     key={lead.lead_id}
