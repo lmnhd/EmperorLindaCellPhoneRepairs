@@ -5,7 +5,9 @@ import {
   updateBrandonState,
   createLead,
   getAvailableSlots,
+  saveChatLog,
   type BrandonState,
+  type ChatLogMessage,
 } from '@/lib/dynamodb'
 
 // ---------------------------------------------------------------------------
@@ -418,6 +420,20 @@ export async function POST(req: NextRequest) {
         history = [system, ...history.slice(-40)]
         conversations.set(sessionId, history)
       }
+
+      // Persist chat log to DynamoDB (fire-and-forget to avoid slowing response)
+      const chatMessages: ChatLogMessage[] = history
+        .filter((h) => h.role === 'user' || h.role === 'assistant')
+        .filter((h) => h.content && h.content.trim().length > 0)
+        .map((h) => ({
+          role: h.role as 'user' | 'assistant',
+          content: h.content,
+          timestamp: Math.floor(Date.now() / 1000),
+        }))
+
+      saveChatLog(sessionId, body.phone || 'unknown', chatMessages).catch((err) =>
+        console.error('Failed to persist chat log:', err)
+      )
 
       return NextResponse.json({
         reply,

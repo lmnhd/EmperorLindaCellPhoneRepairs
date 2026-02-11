@@ -24,7 +24,9 @@ import {
   VolumeX,
   Shield,
   Zap,
+  ScrollText,
 } from 'lucide-react'
+import ChatLogOverlay from '@/components/ChatLogOverlay'
 
 /** Type for Brandon's status modes */
 type StatusMode = 'working' | 'gym' | 'driving' | 'break' | 'sleeping' | 'custom'
@@ -102,6 +104,7 @@ export default function DashboardPage() {
 
   const [leads, setLeads] = useState<Lead[]>([])
   const [leadsLoading, setLeadsLoading] = useState(true)
+  const [chatLogOpen, setChatLogOpen] = useState(false)
 
   // Load leads from DynamoDB on mount + auto-refresh every 15s
   useEffect(() => {
@@ -225,6 +228,14 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setChatLogOpen(true)}
+              className="p-2 rounded-lg hover:bg-emperor-cream/5 transition-all text-emperor-cream/30 hover:text-emperor-gold group relative"
+              title="Chat Transcripts"
+            >
+              <ScrollText className="w-4 h-4" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emperor-gold/60 group-hover:bg-emperor-gold animate-pulse" />
+            </button>
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-mono ${statusConfig.bgColor} ${statusConfig.color}`}>
               <statusConfig.icon className="w-3.5 h-3.5" />
               {statusConfig.label}
@@ -232,6 +243,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
+
+      {/* Chat Log Overlay */}
+      <ChatLogOverlay isOpen={chatLogOpen} onClose={() => setChatLogOpen(false)} />
 
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="grid lg:grid-cols-3 gap-6">

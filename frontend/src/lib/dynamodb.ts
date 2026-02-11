@@ -70,6 +70,23 @@ export interface RepairLead {
   created_at: number
 }
 
+export interface ChatLogMessage {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+}
+
+export interface ChatLogEntry {
+  lead_id: string          // PK — uses "CHATLOG-{sessionId}" prefix
+  timestamp: number        // SK — session start time
+  session_id: string
+  source: string           // 'web-chat' | 'voice-demo' | 'demo' | phone number
+  messages: ChatLogMessage[]
+  message_count: number
+  last_updated: number
+  status: string           // 'active' | 'completed'
+}
+
 // ---------------------------------------------------------------------------
 // State Operations
 // ---------------------------------------------------------------------------
@@ -213,4 +230,76 @@ export async function getAvailableSlots(date: string): Promise<string[]> {
     console.error('Error getting available slots:', error)
     return allSlots
   }
+}
+
+// ---------------------------------------------------------------------------
+// Chat Log Operations
+// ---------------------------------------------------------------------------
+
+/**
+ * Save or update a chat log session. Uses REPAIRS_TABLE with "CHATLOG-" prefix
+ * to avoid needing a separate DynamoDB table.
+ */
+export async function saveChatLog(
+  sessionId: string,
+  source: string,
+  messages: ChatLogMessage[]
+): Promise<void> {
+  const now = Math.floor(Date.now() / 1000)
+  const logKey = `CHATLOG-${sessionId}`
+
+  // Try to get existing entry to preserve original timestamp
+  let originalTimestamp = now
+  try {
+    const existing = await docClient.send(
+      new GetCommand({
+        TableName: REPAIRS_TABLE,
+        Key: { lead_id: logKey, timestamp: 0 },  // We use 0 as fixed SK for chat logs
+      })
+    )
+    if (existing.Item) {
+      originalTimestamp = (existing.Item as ChatLogEntry).timestamp || now
+    }
+  } catch {
+    // First save for this session
+  }
+
+  const entry: ChatLogEntry = {
+    lead_id: logKey,
+    timestamp: 0,  // Fixed SK — we update in-place per session
+    session_id: sessionId,
+    source,
+    messages,
+    message_count: messages.length,
+    last_updated: now,
+    status: 'active',
+  }
+
+  // Preserve original creation timestamp on first write
+  if (originalTimestamp !== now) {
+    entry.timestamp = 0
+  }
+
+  await docClient.send(
+    new PutCommand({
+      TableName: REPAIRS_TABLE,
+      Item: entry,
+    })
+  )
+}
+
+/**
+ * Retrieve all chat logs, sorted by most recently updated.
+ */
+export async function getAllChatLogs(): Promise<ChatLogEntry[]> {
+  const result: ScanCommandOutput = await docClient.send(
+    new ScanCommand({
+      TableName: REPAIRS_TABLE,
+      FilterExpression: 'begins_with(lead_id, :prefix)',
+      ExpressionAttributeValues: { ':prefix': 'CHATLOG-' },
+    })
+  )
+
+  const logs = (result.Items ?? []) as ChatLogEntry[]
+  return logs.sort((a, b) => b.last_updated - a.last_updated)
 }
