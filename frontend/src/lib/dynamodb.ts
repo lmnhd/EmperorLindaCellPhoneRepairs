@@ -127,7 +127,7 @@ export async function getBrandonState(): Promise<BrandonState> {
 }
 
 export async function updateBrandonState(
-  updates: Partial<Pick<BrandonState, 'status' | 'location' | 'notes' | 'special_info' | 'voice' | 'assistant_name' | 'greeting' | 'max_discount' | 'ai_answers_calls' | 'ai_answers_sms' | 'auto_upsell'>>
+  updates: Partial<Pick<BrandonState, 'status' | 'location' | 'notes' | 'special_info' | 'voice' | 'assistant_name' | 'persona' | 'greeting' | 'max_discount' | 'ai_answers_calls' | 'ai_answers_sms' | 'auto_upsell'>>
 ): Promise<BrandonState> {
   // Fetch current state first (merge approach)
   const current = await getBrandonState()
@@ -140,6 +140,7 @@ export async function updateBrandonState(
     special_info: updates.special_info ?? current.special_info,
     voice: updates.voice ?? current.voice,
     assistant_name: updates.assistant_name ?? current.assistant_name,
+    persona: updates.persona ?? current.persona,
     greeting: updates.greeting ?? current.greeting,
     max_discount: updates.max_discount ?? current.max_discount,
     ai_answers_calls: updates.ai_answers_calls ?? current.ai_answers_calls,
