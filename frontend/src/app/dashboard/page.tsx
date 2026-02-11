@@ -100,39 +100,32 @@ export default function DashboardPage() {
     voice: 'onyx',
   })
 
-  const [leads, setLeads] = useState<Lead[]>([
-    // Demo leads (would be from DynamoDB in production)
-    {
-      lead_id: 'LEAD-20260210-143022',
-      phone: '+19041234567',
-      repair_type: 'screen',
-      device: 'iPhone 15 Pro',
-      appointment_date: '2026-02-11',
-      appointment_time: '2:00 PM',
-      status: 'booked',
-      created_at: '2026-02-10T14:30:22Z',
-    },
-    {
-      lead_id: 'LEAD-20260210-110512',
-      phone: '+19049876543',
-      repair_type: 'battery',
-      device: 'Samsung Galaxy S24',
-      appointment_date: '2026-02-11',
-      appointment_time: '10:00 AM',
-      status: 'booked',
-      created_at: '2026-02-10T11:05:12Z',
-    },
-    {
-      lead_id: 'LEAD-20260209-162344',
-      phone: '+19045551234',
-      repair_type: 'charging_port',
-      device: 'iPhone 14',
-      appointment_date: '2026-02-10',
-      appointment_time: '4:00 PM',
-      status: 'completed',
-      created_at: '2026-02-09T16:23:44Z',
-    },
-  ])
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [leadsLoading, setLeadsLoading] = useState(true)
+
+  // Load leads from DynamoDB on mount + auto-refresh every 15s
+  useEffect(() => {
+    const fetchLeads = async () => {
+      try {
+        const response = await fetch('/api/leads')
+        if (!response.ok) {
+          console.error('Failed to fetch leads:', response.status)
+          return
+        }
+        const data = await response.json() as { status: string; leads: Lead[] }
+        if (data.status === 'success' && Array.isArray(data.leads)) {
+          setLeads(data.leads)
+        }
+      } catch (error) {
+        console.error('Error fetching leads:', error)
+      } finally {
+        setLeadsLoading(false)
+      }
+    }
+    fetchLeads()
+    const interval = setInterval(fetchLeads, 15_000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Load state from backend on mount
   useEffect(() => {
@@ -435,11 +428,15 @@ export default function DashboardPage() {
 
             {/* Stats Row */}
             <div className="grid grid-cols-3 gap-4">
-              {[
-                { label: "Today's Leads", value: leads.filter(l => l.appointment_date === '2026-02-10').length.toString(), icon: User, color: 'text-emperor-gold' },
-                { label: "Tomorrow", value: leads.filter(l => l.appointment_date === '2026-02-11').length.toString(), icon: Calendar, color: 'text-accent-blue' },
-                { label: "Completed", value: leads.filter(l => l.status === 'completed').length.toString(), icon: Zap, color: 'text-accent-emerald' },
-              ].map((stat) => (
+              {(() => {
+                const today = new Date().toISOString().split('T')[0]
+                const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+                return [
+                  { label: "Today's Leads", value: leads.filter(l => l.appointment_date === today).length.toString(), icon: User, color: 'text-emperor-gold' },
+                  { label: "Tomorrow", value: leads.filter(l => l.appointment_date === tomorrow).length.toString(), icon: Calendar, color: 'text-accent-blue' },
+                  { label: "Total Booked", value: leads.filter(l => l.status === 'booked').length.toString(), icon: Zap, color: 'text-accent-emerald' },
+                ]
+              })().map((stat) => (
                 <div key={stat.label} className="glass-panel p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <stat.icon className={`w-4 h-4 ${stat.color}`} />
@@ -504,10 +501,17 @@ export default function DashboardPage() {
                   </div>
                 ))}
 
-                {leads.length === 0 && (
+                {leads.length === 0 && !leadsLoading && (
                   <div className="px-6 py-12 text-center">
                     <MessageSquare className="w-8 h-8 text-emperor-cream/10 mx-auto mb-3" />
                     <p className="text-sm text-emperor-cream/30">No leads yet. They&apos;ll appear here in real-time.</p>
+                  </div>
+                )}
+
+                {leadsLoading && (
+                  <div className="px-6 py-12 text-center">
+                    <div className="w-6 h-6 border-2 border-emperor-gold/30 border-t-emperor-gold rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-sm text-emperor-cream/30 font-mono">Loading leads from DynamoDB...</p>
                   </div>
                 )}
               </div>
