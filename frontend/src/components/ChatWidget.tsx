@@ -28,11 +28,13 @@ export default function ChatWidget() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId] = useState(() => `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
+    }
   }
 
   useEffect(() => {
@@ -122,7 +124,7 @@ export default function ChatWidget() {
       </div>
 
       {/* Messages */}
-      <div className="h-[400px] overflow-y-auto px-5 py-4 space-y-4 glass-panel rounded-none border-t-0 border-b-0 dot-pattern">
+      <div ref={messagesContainerRef} className="h-[400px] overflow-y-auto px-5 py-4 space-y-4 glass-panel rounded-none border-t-0 border-b-0 dot-pattern">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -151,8 +153,6 @@ export default function ChatWidget() {
             </div>
           </div>
         )}
-
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
