@@ -64,6 +64,13 @@ export default function LandingPage() {
         </div>
         <div className="flex items-center gap-3">
           <Link
+            href="/features"
+            className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-sm text-emperor-gold/70 hover:text-emperor-gold transition-colors font-medium"
+          >
+            Features
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+          <Link
             href="/demo"
             className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-sm text-emperor-gold/70 hover:text-emperor-gold transition-colors font-medium"
           >
@@ -210,6 +217,10 @@ export default function LandingPage() {
               <MapPin className="w-3 h-3" />
               Jacksonville, FL
             </div>
+            <div className="h-3 w-px bg-emperor-cream/10" />
+            <Link href="/features" className="hover:text-emperor-gold/60 transition-colors">
+              Features
+            </Link>
             <div className="h-3 w-px bg-emperor-cream/10" />
             <Link href="/demo" className="hover:text-emperor-gold/60 transition-colors">
               Live Demo
