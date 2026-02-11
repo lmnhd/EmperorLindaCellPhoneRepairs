@@ -120,12 +120,14 @@ export default function LiveDemoPage() {
   const [activeStatus, setActiveStatus] = useState('shop')
   const [sessionId] = useState(() => `demo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   const [messageCount, setMessageCount] = useState(0)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Auto-scroll on new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
   }, [messages])
 
   // Focus input on mount
@@ -379,7 +381,10 @@ export default function LiveDemoPage() {
             </div>
 
             {/* Messages area */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 glass-panel rounded-none border-t-0 border-b-0">
+            <div 
+              ref={chatContainerRef}
+              className="flex-1 overflow-y-auto px-5 py-4 space-y-4 glass-panel rounded-none border-t-0 border-b-0"
+            >
               {messages.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full text-center px-4">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emperor-gold/20 to-emperor-gold-dark/20 flex items-center justify-center mb-5 border border-emperor-gold/10">
@@ -451,7 +456,7 @@ export default function LiveDemoPage() {
                 </div>
               )}
 
-              <div ref={messagesEndRef} />
+              {/* End spacer removed - using container scrollTop */}
             </div>
 
             {/* Input bar */}

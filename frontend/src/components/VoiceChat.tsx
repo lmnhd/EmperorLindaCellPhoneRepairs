@@ -130,7 +130,7 @@ export default function VoiceChat({
   const sessionIdRef = useRef(`voice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   const callTimerRef = useRef<NodeJS.Timeout | null>(null)
   const animFrameRef = useRef<number>(0)
-  const transcriptEndRef = useRef<HTMLDivElement>(null)
+  const transcriptContainerRef = useRef<HTMLDivElement>(null)
   const isEndingRef = useRef(false)
   const shouldListenRef = useRef(false)
   const chatApiRef = useRef<((text: string) => Promise<void>) | null>(null)
@@ -144,7 +144,9 @@ export default function VoiceChat({
 
   // --- Auto-scroll transcript ---
   useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (transcriptContainerRef.current) {
+      transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight
+    }
   }, [transcript])
 
   // --- Waveform animation ---
@@ -719,7 +721,10 @@ export default function VoiceChat({
       )}
 
       {/* Conversation transcript */}
-      <div className="flex-1 px-6 py-2 space-y-3 overflow-y-auto">
+      <div 
+        ref={transcriptContainerRef}
+        className="flex-1 px-6 py-2 space-y-3 overflow-y-auto"
+      >
         {transcript.map((entry, i) => (
           <div
             key={i}
@@ -736,7 +741,6 @@ export default function VoiceChat({
                 {entry.role === 'user' ? 'YOU' : 'LINDA'}
               </span>
               {entry.text}
-            </div>
           </div>
         ))}
         <div ref={transcriptEndRef} />

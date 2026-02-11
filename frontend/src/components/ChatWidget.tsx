@@ -111,7 +111,7 @@ export default function ChatWidget() {
           </div>
           <div>
             <h3 className="font-display font-semibold text-emperor-cream text-sm">LINDA</h3>
-            <p className="text-[11px] text-emperor-cream/40 font-mono">Online &bull; AI Assistant</p>
+            <p className="text-[11px] text-emperor-cream/40 font-mono">Online &bull; AI Assistant v1.2</p>
           </div>
         </div>
         <a
@@ -124,7 +124,7 @@ export default function ChatWidget() {
       </div>
 
       {/* Messages */}
-      <div ref={messagesContainerRef} className="h-[400px] overflow-y-auto px-5 py-4 space-y-4 glass-panel rounded-none border-t-0 border-b-0 dot-pattern">
+      <div ref={messagesContainerRef} className="h-[400px] max-h-[60vh] overflow-y-auto px-5 py-4 space-y-4 glass-panel rounded-none border-t-0 border-b-0 dot-pattern">
         {messages.map((msg) => (
           <div
             key={msg.id}
