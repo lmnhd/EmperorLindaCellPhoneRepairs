@@ -134,6 +134,9 @@ export default function VoiceChat({
   const isEndingRef = useRef(false)
   const shouldListenRef = useRef(false)
   const chatApiRef = useRef<((text: string) => Promise<void>) | null>(null)
+  const recognitionActiveRef = useRef(false)   // prevents double-start
+  const lastAiResponseRef = useRef('')          // echo detection
+  const ttsCooldownRef = useRef(false)          // post-TTS mic cooldown
 
   // --- Format call duration ---
   const formatDuration = (seconds: number): string => {
@@ -315,15 +318,22 @@ export default function VoiceChat({
           { role: 'ai', text: data.reply, timestamp: Date.now() },
         ])
 
+        // Store for echo detection
+        lastAiResponseRef.current = data.reply.toLowerCase()
+
         // Play the response via TTS
         console.log('[VoiceChat] Starting TTS playback...')
         await playTTS(data.reply)
-        console.log('[VoiceChat] TTS playback finished, resuming listening...')
+        console.log('[VoiceChat] TTS playback finished, cooldown before resuming mic...')
+
+        // Post-TTS cooldown — let speaker audio decay before mic opens
+        ttsCooldownRef.current = true
+        await new Promise<void>((r) => setTimeout(r, 600))
+        ttsCooldownRef.current = false
 
         // Resume listening after AI finishes speaking
         if (!isEndingRef.current && !isMuted) {
           console.log('[VoiceChat] Calling startListening after TTS')
-          // Note: startListening is retrieved from latest ref to avoid circular dependency
           startListening()
         }
       } catch (err: unknown) {
@@ -348,10 +358,33 @@ export default function VoiceChat({
     (text: string) => {
       if (!text.trim() || isEndingRef.current) return
 
+      // --- Echo detection: skip if transcript closely matches last AI response ---
+      const normalized = text.trim().toLowerCase()
+      const lastAi = lastAiResponseRef.current
+      if (lastAi && normalized.length > 5) {
+        // Check if the captured text is a substantial substring of what the AI just said
+        const similarity = lastAi.includes(normalized) || normalized.includes(lastAi.slice(0, Math.min(lastAi.length, 60)))
+        if (similarity) {
+          console.log('[VoiceChat] ⚠️ Echo detected, ignoring:', text.substring(0, 60))
+          // Restart listening instead of sending echo to AI
+          if (!isEndingRef.current && !isMuted) {
+            setTimeout(() => startListening(), 400)
+          }
+          return
+        }
+      }
+
+      // Skip if still in cooldown (speaker audio might be leaking)
+      if (ttsCooldownRef.current) {
+        console.log('[VoiceChat] ⚠️ TTS cooldown active, ignoring capture:', text.substring(0, 40))
+        return
+      }
+
       console.log('[VoiceChat] handleUserSpeech called with:', text)
       setCurrentInterim('')
       setIsListening(false)
       shouldListenRef.current = false
+      recognitionActiveRef.current = false
 
       // Stop recognition while processing
       try {
@@ -371,13 +404,20 @@ export default function VoiceChat({
       console.log('[VoiceChat] Sending user speech to AI...')
       sendToAI(text.trim())
     },
-    [sendToAI],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sendToAI, isMuted],
   )
 
   // --- Start speech recognition ---
   const startListening = useCallback(() => {
-    if (isMuted || isEndingRef.current || isAiSpeaking) {
-      console.log('[VoiceChat] startListening skipped:', { isMuted, isEnding: isEndingRef.current, isAiSpeaking })
+    if (isMuted || isEndingRef.current || isAiSpeaking || ttsCooldownRef.current) {
+      console.log('[VoiceChat] startListening skipped:', { isMuted, isEnding: isEndingRef.current, isAiSpeaking, cooldown: ttsCooldownRef.current })
+      return
+    }
+
+    // Prevent concurrent recognition instances
+    if (recognitionActiveRef.current) {
+      console.log('[VoiceChat] startListening skipped: recognition already active')
       return
     }
 
@@ -405,6 +445,7 @@ export default function VoiceChat({
         console.log('[VoiceChat] Recognition started - listening now')
         setIsListening(true)
         shouldListenRef.current = true
+        recognitionActiveRef.current = true
       }
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -447,8 +488,9 @@ export default function VoiceChat({
       recognition.onend = () => {
         console.log('[VoiceChat] Recognition ended')
         setIsListening(false)
+        recognitionActiveRef.current = false
         // Auto-restart if we should still be listening
-        if (!isEndingRef.current && !isMuted && shouldListenRef.current && !isAiSpeaking) {
+        if (!isEndingRef.current && !isMuted && shouldListenRef.current && !isAiSpeaking && !ttsCooldownRef.current) {
           console.log('[VoiceChat] Auto-restarting recognition...')
           setTimeout(() => startListening(), 300)
         }
