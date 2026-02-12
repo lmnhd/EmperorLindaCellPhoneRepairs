@@ -104,14 +104,21 @@ function buildSystemPrompt(state: BrandonState, persona: PersonaKey = 'professio
 
   const personalityBlock = PERSONAS[persona] ?? PERSONAS.professional
 
-  const specialInfo = (state as BrandonState & { special_info?: string }).special_info?.trim() ?? ''
+  const specialInfo = state.special_info?.trim() ?? ''
   const specialInfoBlock = specialInfo
     ? `\n\n--- OWNER BULLETIN (IMPORTANT — apply this context naturally) ---\n${specialInfo}\n--- END BULLETIN ---\nWeave the above info into conversations when relevant. Don't read it verbatim — reference deals, events, closures, or updates naturally when the topic fits. If a bulletin mentions a closure or schedule change, proactively inform the customer.`
     : ''
 
-  return `You are ${(state as BrandonState & { assistant_name?: string }).assistant_name || 'LINDA'} (Lifestyle-Integrated Network Dispatch Assistant), the AI receptionist for EmperorLinda Cell Phone Repairs — a premium mobile repair shop run by Brandon in Jacksonville, FL.
+  const assistantName = state.assistant_name || 'LINDA'
+  const savedGreeting = state.greeting?.trim() ?? ''
+  const greetingBlock = savedGreeting
+    ? `\nDEFAULT GREETING (use this or a very close variation when greeting a new customer):\n"${savedGreeting}"`
+    : ''
+
+  return `You are ${assistantName} (Lifestyle-Integrated Network Dispatch Assistant), the AI receptionist for EmperorLinda Cell Phone Repairs — a premium mobile repair shop run by Brandon in Jacksonville, FL.
 
 ${personalityBlock}
+${greetingBlock}
 
 BRANDON'S CURRENT STATUS: ${statusLabel}
 BRANDON'S LOCATION: ${state.location}

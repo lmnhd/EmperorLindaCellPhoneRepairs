@@ -116,32 +116,46 @@ export async function POST(req: NextRequest) {
     const baseUrl = req.nextUrl.origin
     const actionUrl = `${baseUrl}/api/twilio-voice`
 
-    // Fetch the owner's preferred voice from state
+    // Fetch the owner's full preferences from state
     let preferredVoice: VoiceName = 'onyx'
+    let savedPersona: string = 'professional'
+    let savedGreeting: string = ''
+    let savedAssistantName: string = 'LINDA'
     try {
       const state = await getBrandonState()
       preferredVoice = (state.voice as VoiceName) || 'onyx'
+      savedPersona = state.persona || 'professional'
+      savedGreeting = state.greeting || ''
+      savedAssistantName = state.assistant_name || 'LINDA'
     } catch {
-      // Default to onyx if state fetch fails
+      // Defaults above are fine if state fetch fails
     }
 
     // --- Initial call (no SpeechResult yet) ---
     if (!speechResult) {
-      const chatRes = await fetch(`${baseUrl}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: 'A customer is calling in right now. Greet them warmly and ask what they need help with. Keep it very short — one or two sentences.',
-          sessionId: callSid,
-          phone: callSid,
-          persona: 'laidback',
-        }),
-      })
+      // If the owner saved a custom greeting, use it directly instead of
+      // burning an OpenAI call. Otherwise ask the AI to generate one.
+      let greeting = ''
 
-      let greeting = "Hey! Thanks for calling EmperorLinda Cell Phone Repairs. What can I help you with today?"
-      if (chatRes.ok) {
-        const data = (await chatRes.json()) as ChatApiResponse
-        greeting = data.reply
+      if (savedGreeting) {
+        greeting = savedGreeting
+      } else {
+        const chatRes = await fetch(`${baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `A customer is calling in right now. Greet them warmly as ${savedAssistantName} and ask what they need help with. Keep it very short — one or two sentences.`,
+            sessionId: callSid,
+            phone: callSid,
+            persona: savedPersona,
+          }),
+        })
+
+        greeting = `Hey! Thanks for calling EmperorLinda Cell Phone Repairs. This is ${savedAssistantName}. What can I help you with today?`
+        if (chatRes.ok) {
+          const data = (await chatRes.json()) as ChatApiResponse
+          greeting = data.reply
+        }
       }
 
       const ttsUrl = await generateTTSUrl(baseUrl, greeting, preferredVoice)
@@ -159,7 +173,7 @@ export async function POST(req: NextRequest) {
         message: speechResult,
         sessionId: callSid,
         phone: callSid,
-        persona: 'laidback',
+        persona: savedPersona,
       }),
     })
 

@@ -90,20 +90,23 @@ const SUGGESTED_INTROS = [
 
 export default function VoiceDemoPage() {
   const [isInCall, setIsInCall] = useState(false)
-  const [selectedPersona, setSelectedPersona] = useState<PersonaKey>('laidback')
+  const [selectedPersona, setSelectedPersona] = useState<PersonaKey>('professional')
   const [micPermission, setMicPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown')
   const [savedVoice, setSavedVoice] = useState<string | undefined>(undefined)
 
-  // Fetch saved voice preference from Brandon's state
+  // Fetch saved voice AND persona preference from Brandon's state
   useEffect(() => {
     fetch('/api/state')
       .then(res => res.json())
-      .then((data: { status: string; state?: { voice?: string } }) => {
+      .then((data: { status: string; state?: { voice?: string; persona?: string } }) => {
         if (data.state?.voice) {
           setSavedVoice(data.state.voice)
         }
+        if (data.state?.persona && ['laidback', 'professional', 'hustler'].includes(data.state.persona)) {
+          setSelectedPersona(data.state.persona as PersonaKey)
+        }
       })
-      .catch(() => { /* use default persona voice */ })
+      .catch(() => { /* use defaults */ })
   }, [])
 
   // Check microphone permission before starting call
