@@ -148,6 +148,7 @@ export async function POST(req: NextRequest) {
             sessionId: callSid,
             phone: callSid,
             persona: savedPersona,
+            channel: 'phone',
           }),
         })
 
@@ -174,6 +175,7 @@ export async function POST(req: NextRequest) {
         sessionId: callSid,
         phone: callSid,
         persona: savedPersona,
+        channel: 'phone',
       }),
     })
 

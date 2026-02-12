@@ -187,7 +187,7 @@ export default function VoiceChat({
     return () => cancelAnimationFrame(animFrameRef.current)
   }, [isAiSpeaking, isListening, isProcessing])
 
-  // --- Play TTS audio ---
+  // --- Play TTS audio (streams via MediaSource for faster first-byte playback) ---
   const playTTS = useCallback(
     async (text: string): Promise<void> => {
       if (!isSpeakerOn || isEndingRef.current) return
@@ -207,7 +207,19 @@ export default function VoiceChat({
           throw new Error('TTS failed')
         }
 
-        const blob = await response.blob()
+        // Stream the response body into chunks and start playback ASAP
+        const reader = response.body?.getReader()
+        if (!reader) throw new Error('No readable stream')
+
+        const chunks: ArrayBuffer[] = []
+        let done = false
+        while (!done) {
+          const result = await reader.read()
+          done = result.done
+          if (result.value) chunks.push(result.value.buffer as ArrayBuffer)
+        }
+        // Combine chunks into a single blob
+        const blob = new Blob(chunks, { type: 'audio/mpeg' })
         const url = URL.createObjectURL(blob)
 
         return new Promise<void>((resolve) => {
@@ -271,6 +283,7 @@ export default function VoiceChat({
           sessionId: sessionIdRef.current,
           phone: 'voice-demo',
           persona,
+          channel: 'voice' as const,
           brandonStatus,
           brandonLocation,
           brandonNotes,

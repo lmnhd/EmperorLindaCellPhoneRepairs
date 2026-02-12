@@ -15,12 +15,14 @@ import {
 // ---------------------------------------------------------------------------
 
 type PersonaKey = 'professional' | 'laidback' | 'hustler'
+type ChannelType = 'text' | 'voice' | 'phone'
 
 interface ChatRequestBody {
   message: string
   sessionId?: string
   phone?: string
   persona?: PersonaKey
+  channel?: ChannelType
   brandonStatus?: string
   brandonLocation?: string
   brandonNotes?: string
@@ -85,23 +87,59 @@ const PERSONAS: Record<PersonaKey, string> = {
 }
 
 // ---------------------------------------------------------------------------
-// LINDA system prompt
+// Helpers
 // ---------------------------------------------------------------------------
 
-function buildSystemPrompt(state: BrandonState, persona: PersonaKey = 'professional'): string {
-  const statusLabel =
-    state.status === 'gym'
-      ? 'At the gym — will be back in 1-2 hours'
-      : state.status === 'unavailable'
-        ? 'Currently unavailable'
-        : state.status === 'driving'
-          ? 'Driving / out — will respond soon'
-          : state.status === 'break'
-            ? 'On break — back shortly'
-            : state.status === 'sleeping'
-              ? 'After hours — open tomorrow at 9 AM'
-              : 'Available at the shop'
+function getStatusLabel(status: string): string {
+  switch (status) {
+    case 'gym':         return 'At the gym — back in 1-2 hours'
+    case 'unavailable': return 'Currently unavailable'
+    case 'driving':     return 'Driving / out — will respond soon'
+    case 'break':       return 'On break — back shortly'
+    case 'sleeping':    return 'After hours — open tomorrow at 9 AM'
+    default:            return 'Available at the shop'
+  }
+}
 
+// ---------------------------------------------------------------------------
+// LINDA system prompt  — VOICE mode (ultra-compact for speed)
+// ---------------------------------------------------------------------------
+
+function buildVoicePrompt(state: BrandonState, persona: PersonaKey = 'professional'): string {
+  const personalityBlock = PERSONAS[persona] ?? PERSONAS.professional
+  const assistantName = state.assistant_name || 'LINDA'
+  const savedGreeting = state.greeting?.trim() ?? ''
+  const greetingLine = savedGreeting
+    ? `\nGREETING: "${savedGreeting}"`
+    : ''
+  const specialInfo = state.special_info?.trim() ?? ''
+  const bulletinLine = specialInfo
+    ? `\nBULLETIN: ${specialInfo}`
+    : ''
+
+  return `You are ${assistantName}, AI receptionist for EmperorLinda Cell Phone Repairs (Brandon, Jacksonville FL).
+
+⚡ VOICE RULES (HIGHEST PRIORITY):
+- You are on a LIVE PHONE CALL. Respond in 1-2 SHORT sentences MAX.
+- NEVER use lists, bullets, or long explanations.
+- Talk like a real person — casual, natural, brief.
+- ONE question or ONE piece of info per turn. Then STOP and wait.
+- If the customer asks about pricing, use the get_pricing tool — do NOT recite a menu.
+
+${personalityBlock}
+${greetingLine}
+
+STATUS: ${getStatusLabel(state.status)} | LOCATION: ${state.location}
+${state.notes ? `NOTE: ${state.notes}` : ''}${bulletinLine}
+
+Today: ${new Date().toISOString().split('T')[0]}`
+}
+
+// ---------------------------------------------------------------------------
+// LINDA system prompt  — TEXT mode (full detail for chat)
+// ---------------------------------------------------------------------------
+
+function buildTextPrompt(state: BrandonState, persona: PersonaKey = 'professional'): string {
   const personalityBlock = PERSONAS[persona] ?? PERSONAS.professional
 
   const specialInfo = state.special_info?.trim() ?? ''
@@ -120,7 +158,7 @@ function buildSystemPrompt(state: BrandonState, persona: PersonaKey = 'professio
 ${personalityBlock}
 ${greetingBlock}
 
-BRANDON'S CURRENT STATUS: ${statusLabel}
+BRANDON'S CURRENT STATUS: ${getStatusLabel(state.status)}
 BRANDON'S LOCATION: ${state.location}
 ${state.notes ? `BRANDON'S NOTE: ${state.notes}` : ''}
 ${specialInfoBlock}
@@ -131,34 +169,31 @@ SERVICES & PRICING (approximate — always say "starting at"):
 - Charging port repair: starting at $59
 - Water damage assessment: $39 diagnostic fee
 - Back glass replacement: starting at $69
-- On-site repair: available for an additional $20 service fee
+- On-site repair: additional $20 service fee
 - Remote diagnostic: free via phone/video
 
 All repairs include a 90-day warranty. Most done in under an hour.
 
-SERVICE TYPES:
-- Walk-in: Customer comes to the shop
-- On-site: Brandon travels to the customer ($20 fee)
-- Remote: Diagnostic/consultation via phone or video (free)
+SERVICE TYPES: Walk-in | On-site ($20 fee) | Remote (free diagnostic)
 
 BEHAVIOR RULES:
-1. If Brandon is at the gym / unavailable, emphasize that slots are limited and create light scarcity.
-2. Always try to identify the device model and repair type early.
-3. Ask about service preference: walk-in, on-site, or remote diagnostic.
-4. After giving a quote, ask if they'd like to book.
-5. After booking, offer a screen protector upsell ($15) or phone case ($25).
-6. Never promise exact prices — say "starting at" and mention final price depends on the model.
-7. If someone asks something you can't handle (refund, complaint), say you'll have Brandon reach out personally.
-8. Be concise — this is meant to feel like a real phone call, not reading an essay.
-9. IMPORTANT: You are speaking via voice. Keep responses SHORT (1-3 sentences max). No bullet points or lists — speak naturally like a real person on the phone.
-
-AVAILABLE FUNCTIONS:
-- check_availability: Check open time slots for a date
-- book_slot: Book a repair appointment
-- authorize_discount: Request a discount (auto-approve <=15%, escalate >15%)
-- log_upsell: Log whether a customer accepted/declined an upsell
+1. If Brandon is unavailable, create light scarcity ("slots are filling up").
+2. Identify device model and repair type early.
+3. Ask service preference: walk-in, on-site, or remote.
+4. After quoting, ask if they'd like to book.
+5. After booking, offer screen protector ($15) or phone case ($25) upsell.
+6. Say "starting at" — final price depends on model.
+7. Escalate refunds/complaints: "I'll have Brandon reach out personally."
+8. Keep responses concise and conversational.
 
 Today's date: ${new Date().toISOString().split('T')[0]}`
+}
+
+/** Pick the right prompt based on channel */
+function buildSystemPrompt(state: BrandonState, persona: PersonaKey = 'professional', channel: ChannelType = 'text'): string {
+  return channel === 'text'
+    ? buildTextPrompt(state, persona)
+    : buildVoicePrompt(state, persona)
 }
 
 // ---------------------------------------------------------------------------
@@ -245,6 +280,25 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_pricing',
+      description:
+        'Look up repair pricing and services. Call this when a customer asks about prices, services, or what repairs are available. Returns the full price list.',
+      parameters: {
+        type: 'object',
+        properties: {
+          repair_type: {
+            type: 'string',
+            description: "Optional filter: 'screen', 'battery', 'charging_port', 'water_damage', 'back_glass', 'on_site', or 'all'",
+          },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -318,6 +372,28 @@ async function executeFunction(
       }
     }
 
+    case 'get_pricing': {
+      const filter = (args.repair_type as string) || 'all'
+      const pricing: Record<string, string> = {
+        screen: 'Screen replacement: starting at $79 (iPhone), $89 (Samsung)',
+        battery: 'Battery replacement: starting at $49',
+        charging_port: 'Charging port repair: starting at $59',
+        water_damage: 'Water damage assessment: $39 diagnostic fee',
+        back_glass: 'Back glass replacement: starting at $69',
+        on_site: 'On-site repair: additional $20 service fee',
+      }
+      const items = filter === 'all'
+        ? Object.values(pricing)
+        : [pricing[filter] ?? `No specific pricing for '${filter}' — ask Brandon`]
+      return {
+        success: true,
+        pricing: items,
+        note: 'All prices are "starting at" — final price depends on device model. 90-day warranty included. Most repairs under 1 hour.',
+        services: 'Walk-in | On-site (+$20) | Remote diagnostic (free)',
+        upsells: 'Screen protector $15 | Phone case $25',
+      }
+    }
+
     default:
       return { success: false, message: `Unknown function: ${name}` }
   }
@@ -354,17 +430,18 @@ export async function POST(req: NextRequest) {
     // Fetch real state from DynamoDB
     const currentState = await getBrandonState()
     const persona: PersonaKey = body.persona ?? (currentState.persona as PersonaKey) ?? 'professional'
+    const channel: ChannelType = body.channel ?? 'text'
 
     // Session management
     const sessionId = body.sessionId || 'default'
     let history = conversations.get(sessionId)
 
     if (!history) {
-      history = [{ role: 'system' as const, content: buildSystemPrompt(currentState, persona) }]
+      history = [{ role: 'system' as const, content: buildSystemPrompt(currentState, persona, channel) }]
       conversations.set(sessionId, history)
     } else {
       // Refresh system prompt so status/persona changes take effect mid-conversation
-      history[0] = { role: 'system' as const, content: buildSystemPrompt(currentState, persona) }
+      history[0] = { role: 'system' as const, content: buildSystemPrompt(currentState, persona, channel) }
     }
 
     // Add user message
@@ -377,11 +454,16 @@ export async function POST(req: NextRequest) {
     while (iterations < MAX_ITERATIONS) {
       iterations++
 
+      // Use faster model for voice channels to reduce latency
+      const model = channel === 'text' ? 'gpt-5-mini' : 'gpt-4o-mini'
+      const maxTokens = channel === 'text' ? undefined : 150
+
       const completion = await openai.chat.completions.create({
-        model: 'gpt-5-mini',
+        model,
         messages: history as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         tools,
         tool_choice: 'auto',
+        ...(maxTokens ? { max_tokens: maxTokens } : {}),
       })
 
       const choice = completion.choices[0]
