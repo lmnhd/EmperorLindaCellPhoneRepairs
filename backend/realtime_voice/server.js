@@ -187,13 +187,11 @@ app.get('/health/store-status', async (_request, reply) => {
 })
 
 app.register(async (fastify) => {
-  fastify.get('/media-stream', { websocket: true }, (twilioConnection) => {
+  fastify.get('/media-stream', { websocket: true }, (twilioSocket) => {
     let streamSid = null
     let latestMediaTimestamp = 0
     let responseStartTimestamp = null
     let lastAssistantItemId = null
-
-    const twilioSocket = twilioConnection.socket
 
     const openAiWs = new WebSocket(`wss://api.openai.com/v1/realtime?model=${encodeURIComponent(OPENAI_REALTIME_MODEL)}`, {
       headers: {
