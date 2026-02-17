@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmperorLinda Curiosity Flyer</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        
+        :root {
+            --primary: #2563eb;
+            --secondary: #1e293b;
+            --accent: #f59e0b;
+            --bg: #ffffff;
+            --text: #334155;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            background: var(--bg);
+        }
+
+        /* Print Layout Rules */
+        @media print {
+            @page { margin: 0.3in; size: 8.5in 5.5in; }
+            body { margin: 0; }
+            .no-print { display: none; }
+        }
+
+        .page {
+            min-height: 5.5in;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 0.45in;
+            box-sizing: border-box;
+            position: relative;
+        }
+        
+        .page-content {
+            max-width: 7.6in;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        h1 { font-size: 2rem; font-weight: 800; color: var(--secondary); margin-bottom: 0.45rem; line-height: 1.15; }
+        p { font-size: 1rem; margin: 0; max-width: 65ch; }
+        
+        .subtitle { font-size: 1rem; color: var(--text); font-weight: 400; margin-bottom: 0.9rem; display: block; }
+
+        .highlight { color: var(--primary); font-weight: 600; }
+        
+        /* QR Code Styling */
+        .qr-container {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-top: 0.9rem;
+            padding: 0.8rem;
+            border: 2px dashed #e2e8f0;
+            border-radius: 0.65rem;
+            background: #f8fafc;
+        }
+
+        .copy {
+            flex: 1;
+        }
+        
+        .qr-image {
+            width: 130px;
+            height: 130px;
+            margin-bottom: 0;
+            border: 6px solid white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .qr-caption { font-size: 0.8rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; margin-top: 0.35rem; text-align: center; }
+        
+        /* Footer */
+        .footer {
+            margin-top: 0.7rem;
+            text-align: left;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            padding-top: 0;
+        }
+
+        /* Banner */
+        .header-banner {
+            background: var(--secondary);
+            color: white;
+            padding: 0.5rem 1rem;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            display: inline-block;
+            margin-bottom: 0.8rem;
+        }
+
+        .scan-line {
+            color: var(--primary);
+            font-weight: 700;
+            margin-top: 0.55rem;
+            font-size: 0.95rem;
+        }
+
+        .qr-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="page">
+        <div class="page-content">
+            <div class="header-banner">Digital Strategy Proposal for Brandon</div>
+            
+            <h1>I found EmperorLinda on Google Maps and saw an opening.</h1>
+            <span class="subtitle">One-page preview.</span>
+
+            <div class="qr-container">
+                <div class="copy">
+                    <p>
+                        Hi Brandon—while searching local repair shops, I found your listing, then studied your digital footprint and built a quick prototype that I think can sharpen your edge: a simple system that catches missed opportunities, answers customers instantly, and helps you stay focused on repairs while the front-end conversation keeps moving; if this feels interesting, scan the code to see the live demo and I’ll show you the full concept in five minutes.
+                    </p>
+                    <div class="scan-line">Scan to view the live demo.</div>
+                </div>
+                <div class="qr-block">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://emperor-linda-cell-phone-repairs.vercel.app/" alt="Scan to Try Demo" class="qr-image">
+                    <div class="qr-caption">Prototype Preview</div>
+                </div>
+            </div>
+
+            <div class="footer">Half-sheet teaser • EmperorLinda digital edge concept</div>
+        </div>
+    </div>
+
+</body>
+</html>
