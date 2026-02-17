@@ -11,6 +11,25 @@ const FRONTEND_URL = process.env.FRONTEND_URL
 const DEFAULT_VOICE = process.env.VOICE ?? 'alloy'
 const OPENAI_REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL ?? 'gpt-4o-realtime-preview-2024-12-17'
 
+const REALTIME_SUPPORTED_VOICES = new Set([
+  'alloy',
+  'ash',
+  'ballad',
+  'coral',
+  'echo',
+  'sage',
+  'shimmer',
+  'verse',
+  'marin',
+  'cedar',
+])
+
+const LEGACY_TO_REALTIME_VOICE_MAP = {
+  nova: 'alloy',
+  onyx: 'echo',
+  fable: 'sage',
+}
+
 if (!OPENAI_API_KEY) {
   throw new Error('Missing OPENAI_API_KEY for realtime voice relay')
 }
@@ -37,11 +56,20 @@ function buildFallbackConfig() {
 }
 
 function sanitizeVoice(rawVoice) {
-  const validVoices = new Set(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'])
   if (typeof rawVoice !== 'string') {
-    return DEFAULT_VOICE
+    return REALTIME_SUPPORTED_VOICES.has(DEFAULT_VOICE) ? DEFAULT_VOICE : 'alloy'
   }
-  return validVoices.has(rawVoice) ? rawVoice : DEFAULT_VOICE
+
+  const normalized = rawVoice.trim().toLowerCase()
+  const mapped = LEGACY_TO_REALTIME_VOICE_MAP[normalized] ?? normalized
+
+  if (REALTIME_SUPPORTED_VOICES.has(mapped)) {
+    return mapped
+  }
+
+  const fallback = REALTIME_SUPPORTED_VOICES.has(DEFAULT_VOICE) ? DEFAULT_VOICE : 'alloy'
+  app.log.warn({ rawVoice, mapped, fallback }, 'Unsupported voice from state; falling back to realtime-supported voice')
+  return fallback
 }
 
 async function loadRuntimeConfig() {
