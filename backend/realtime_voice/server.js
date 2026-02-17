@@ -192,6 +192,8 @@ app.register(async (fastify) => {
     let latestMediaTimestamp = 0
     let responseStartTimestamp = null
     let lastAssistantItemId = null
+    let sessionReady = false
+    let pendingGreetingAssistantName = null
 
     const openAiWs = new WebSocket(`wss://api.openai.com/v1/realtime?model=${encodeURIComponent(OPENAI_REALTIME_MODEL)}`, {
       headers: {
@@ -203,13 +205,28 @@ app.register(async (fastify) => {
     openAiWs.on('open', async () => {
       const config = await loadRuntimeConfig()
       app.log.info({ source: config.source, voice: config.voice }, 'OpenAI realtime connected')
+      pendingGreetingAssistantName = config.assistantName
       sendSessionUpdate(openAiWs, config)
-      sendInitialGreeting(openAiWs, config.assistantName)
     })
 
     openAiWs.on('message', (raw) => {
       try {
         const event = JSON.parse(raw.toString())
+
+        if (event.type === 'session.updated') {
+          sessionReady = true
+          app.log.info({ streamSid }, 'OpenAI session updated and ready')
+          if (pendingGreetingAssistantName) {
+            sendInitialGreeting(openAiWs, pendingGreetingAssistantName)
+            pendingGreetingAssistantName = null
+          }
+          return
+        }
+
+        if (event.type === 'error') {
+          app.log.error({ event }, 'OpenAI realtime error event')
+          return
+        }
 
         if (event.type === 'response.audio.delta' && event.delta && streamSid) {
           if (responseStartTimestamp === null) {
@@ -227,6 +244,10 @@ app.register(async (fastify) => {
               media: { payload: event.delta },
             }),
           )
+        }
+
+        if (event.type === 'response.done' && event.response?.status === 'failed') {
+          app.log.error({ event }, 'OpenAI response failed')
         }
 
         if (event.type === 'input_audio_buffer.speech_started' && responseStartTimestamp !== null) {
@@ -272,6 +293,10 @@ app.register(async (fastify) => {
         }
 
         if (message.event === 'media') {
+          if (!sessionReady) {
+            return
+          }
+
           latestMediaTimestamp = Number(message.media?.timestamp ?? latestMediaTimestamp)
           const payload = message.media?.payload
 
