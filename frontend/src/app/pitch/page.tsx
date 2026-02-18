@@ -63,7 +63,7 @@ const GAPS: Gap[] = [
     solution:
       'LINDA answers every call, 24/7 — even when you\'re mid-repair, at the gym, or asleep. Natural voice, real answers, books the appointment on the spot. A customer who calls your number at 11 PM on a Sunday gets a booking confirmation before they can close the tab.',
     ctas: [
-      { label: 'Call now & try LINDA: (855) 799-5436', href: 'tel:+18557995436', variant: 'phone' },
+      { label: 'Call now & try LINDA: (904) 650-3007', href: 'tel:+19046503007', variant: 'phone' },
     ],
   },
   {
@@ -130,7 +130,7 @@ const GAPS: Gap[] = [
     solution:
       'LINDA runs 24/7 with zero marginal cost. After-hours mode shifts tone automatically — acknowledges it\'s late, explains your hours, and still captures a booking for the next available slot. A customer who can\'t reach you tonight books with you for tomorrow — instead of someone else for today.',
     ctas: [
-      { label: 'Call after hours: (855) 799-5436', href: 'tel:+18557995436', variant: 'phone' },
+      { label: 'Call after hours: (904) 650-3007', href: 'tel:+19046503007', variant: 'phone' },
       { label: 'See the ROI Numbers', href: '/features#roi', variant: 'secondary' },
     ],
   },
@@ -440,11 +440,11 @@ export default function PitchPage() {
 
           <div className="flex flex-wrap gap-4 justify-center">
             <a
-              href="tel:+18557995436"
+              href="tel:+19046503007"
               className="inline-flex items-center gap-2 font-sans font-bold text-base px-7 py-3.5 rounded bg-emperor-gold text-emperor-black hover:bg-emperor-gold-light transition-colors"
             >
               <Phone size={16} />
-              Call the Demo: (855) 799-5436
+              Call the Demo: (904) 650-3007
             </a>
             <Link
               href="/"

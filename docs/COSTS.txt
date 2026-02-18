@@ -3,7 +3,7 @@
 1. OpenAI (RTAPI): $10
 2. Render.com: $7
 3. Phone: $2
-4. SMS: $10
+4. SMS: $10 (basically not even worth the money unless you only expect a million important text messages! - might as well push guests to use web-chat!)
 
 My recommendation: Buy it. For the PoC demo:
 

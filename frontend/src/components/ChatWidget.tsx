@@ -96,7 +96,7 @@ export default function ChatWidget() {
     }
   }
 
-  const twilioPhone = process.env.NEXT_PUBLIC_TWILIO_PHONE || '+18557995436'
+  const twilioPhone = process.env.NEXT_PUBLIC_TWILIO_PHONE || '+19046503007'
 
   return (
     <div className="w-full max-w-lg mx-auto">
