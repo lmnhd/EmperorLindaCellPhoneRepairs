@@ -84,6 +84,8 @@ interface VoiceChatProps {
   voiceOverride?: VoiceName
   sessionId?: string
   handoffPrompt?: string
+  renderMode?: 'full' | 'hero'
+  onAssistantMessage?: (message: string) => void
 }
 
 interface ChatApiResponse {
@@ -120,6 +122,8 @@ export default function VoiceChat({
   voiceOverride,
   sessionId,
   handoffPrompt,
+  renderMode = 'full',
+  onAssistantMessage,
 }: VoiceChatProps) {
   // --- State ---
   const [callState, setCallState] = useState<CallState>('calling')
@@ -343,6 +347,8 @@ export default function VoiceChat({
           { role: 'assistant', text: data.reply, timestamp: Date.now() },
         ])
 
+        onAssistantMessage?.(data.reply)
+
         // Store for echo detection
         lastAiResponseRef.current = data.reply.toLowerCase()
 
@@ -375,7 +381,7 @@ export default function VoiceChat({
         }
       }
     },
-    [persona, brandonStatus, brandonLocation, brandonNotes, playTTS, isMuted],
+    [persona, brandonStatus, brandonLocation, brandonNotes, playTTS, isMuted, onAssistantMessage],
   )
 
   // --- Handle completed user speech ---
@@ -659,6 +665,94 @@ export default function VoiceChat({
   // =========================================================================
   // RENDER
   // =========================================================================
+
+  if (renderMode === 'hero') {
+    const statusLabel =
+      callState === 'calling'
+        ? 'Connecting voice…'
+        : callState === 'ending'
+          ? 'Ending call…'
+          : isAiSpeaking
+            ? 'LINDA is speaking…'
+            : isListening
+              ? 'Listening…'
+              : isProcessing
+                ? 'Thinking…'
+                : isMuted
+                  ? 'Voice muted'
+                  : 'Voice active'
+
+    const statusTone =
+      callState === 'calling'
+        ? 'text-emperor-gold'
+        : callState === 'ending'
+          ? 'text-emperor-cream/50'
+          : isAiSpeaking
+            ? 'text-emperor-gold'
+            : isListening
+              ? 'text-accent-emerald'
+              : isProcessing
+                ? 'text-emperor-cream/60'
+                : 'text-emperor-cream/65'
+
+    return (
+      <div className="absolute inset-x-0 bottom-6 z-40 px-4 sm:px-6">
+        <div className="mx-auto w-full max-w-2xl rounded-2xl border border-white/10 bg-emperor-black/70 backdrop-blur-xl shadow-2xl shadow-emperor-black/60 px-4 py-3 sm:px-5 sm:py-4">
+          <div className="flex items-center justify-between gap-4">
+            <span className={`font-mono text-xs uppercase tracking-[0.18em] ${statusTone}`}>
+              {statusLabel}
+            </span>
+            <span className="font-mono text-xs tabular-nums text-emperor-cream/45">
+              {formatDuration(callDuration)}
+            </span>
+          </div>
+
+          {currentInterim && callState === 'connected' && (
+            <p className="mt-2 text-xs italic text-accent-emerald/70 truncate">
+              &quot;{currentInterim}&quot;
+            </p>
+          )}
+
+          {error && (
+            <p className="mt-2 text-xs text-accent-red/80">{error}</p>
+          )}
+
+          <div className="mt-3 flex items-center justify-center gap-3">
+            <button
+              onClick={toggleMute}
+              disabled={callState !== 'connected'}
+              className={`w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                isMuted
+                  ? 'bg-accent-red/20 text-accent-red border border-accent-red/30'
+                  : 'bg-emperor-slate/70 text-emperor-cream/65 border border-emperor-cream/10 hover:bg-emperor-slate'
+              }`}
+            >
+              {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+
+            <button
+              onClick={endCall}
+              className="w-12 h-12 rounded-full flex items-center justify-center bg-accent-red shadow-lg shadow-accent-red/30 hover:bg-accent-red/80 transition-all"
+            >
+              <PhoneOff className="w-5 h-5 text-white" />
+            </button>
+
+            <button
+              onClick={toggleSpeaker}
+              disabled={callState !== 'connected'}
+              className={`w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                !isSpeakerOn
+                  ? 'bg-accent-amber/20 text-accent-amber border border-accent-amber/30'
+                  : 'bg-emperor-slate/70 text-emperor-cream/65 border border-emperor-cream/10 hover:bg-emperor-slate'
+              }`}
+            >
+              {isSpeakerOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // --- Calling / Ringing State ---
   if (callState === 'calling') {

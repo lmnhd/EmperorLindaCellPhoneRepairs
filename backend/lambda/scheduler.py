@@ -13,7 +13,7 @@ from utils import (
     create_lambda_response,
     get_available_slots,
     query_leads_for_date,
-    create_lead,
+    create_booking,
     DecimalEncoder
 )
 
@@ -86,16 +86,8 @@ def book_appointment(booking_data: dict) -> dict:
                 'message': 'Invalid date format. Use YYYY-MM-DD'
             })
         
-        # Check if slot is available
-        available_slots = get_available_slots(date)
-        if time not in available_slots:
-            return create_lambda_response(409, {
-                'status': 'error',
-                'message': f"Time slot {time} is not available on {date}. Available slots: {available_slots}"
-            })
-        
-        # Create booking
-        lead_id = create_lead(phone, repair_type, device, date, time)
+        # Create booking with persistent slot reservation
+        lead_id = create_booking(phone, repair_type, device, date, time)
         
         logger.info(f"Booking created: {lead_id} for {phone} on {date} at {time}")
         
@@ -111,6 +103,13 @@ def book_appointment(booking_data: dict) -> dict:
             'customer_name': customer_name
         })
     
+    except ValueError as e:
+        available_slots = get_available_slots(booking_data.get('date', '')) if booking_data.get('date') else []
+        return create_lambda_response(409, {
+            'status': 'error',
+            'message': f"{str(e)}. Available slots: {available_slots}"
+        })
+
     except Exception as e:
         logger.error(f"Error creating booking: {e}", exc_info=True)
         return create_lambda_response(500, {

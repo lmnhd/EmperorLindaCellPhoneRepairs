@@ -69,7 +69,7 @@ const AI_FEATURES = [
   {
     icon: Phone,
     title: 'Answers Every Call',
-    desc: 'AI picks up your phone 24/7 — even at the gym, driving, or sleeping. Never miss a lead again.',
+    desc: 'AI phone answering is supported 24/7, and can be enabled when Twilio registration is completed.',
   },
   {
     icon: MessageSquare,
@@ -132,7 +132,7 @@ const DASHBOARD_FEATURES = [
   {
     icon: FileText,
     title: 'Chat Transcripts',
-    desc: 'Read every conversation — phone, web, SMS. Search by source. Expand full message history.',
+    desc: 'Read every conversation — web chat now, plus phone/SMS when Twilio registration is enabled.',
     color: 'text-emperor-gold',
   },
 ]
@@ -394,7 +394,7 @@ export default function FeaturesPage() {
         <SectionHeader
           badge="Voice"
           title="Premium Voice System"
-          subtitle="Your customers hear a natural, human-like voice — not a robot. Same voice across phone, web, and SMS."
+          subtitle="Your customers hear a natural, human-like voice — not a robot. Same experience on web now, with phone/SMS available after Twilio registration."
         />
 
         <div className="grid lg:grid-cols-2 gap-8 mt-14">
@@ -405,12 +405,12 @@ export default function FeaturesPage() {
               <h3 className="font-display font-bold text-xl text-emperor-cream">Consistent Across All Channels</h3>
             </div>
             <p className="text-emperor-cream/45 leading-relaxed">
-              Whether a customer calls your phone number, chats on your website, or hears a voice demo — 
+              Whether a customer chats on your website, hears the browser voice demo, or calls your number after Twilio activation — 
               they hear the <strong className="text-emperor-cream/70">exact same voice and personality</strong>. 
               No mismatched robot voices.
             </p>
             <div className="space-y-3">
-              {['Phone Calls (Twilio)', 'Website Chat (Landing Page)', 'Voice Demo (Browser)', 'SMS Responses'].map((ch) => (
+              {['Website Chat (Live Now)', 'Voice Demo (Browser)', 'Phone Calls (Twilio - Optional)', 'SMS Responses (Optional)'].map((ch) => (
                 <div key={ch} className="flex items-center gap-3">
                   <CheckCircle2 className="w-4 h-4 text-accent-emerald flex-shrink-0" />
                   <span className="text-sm text-emperor-cream/60">{ch}</span>
@@ -652,7 +652,7 @@ export default function FeaturesPage() {
         <SectionHeader
           badge="Investment"
           title="Simple, All-In-One Pricing"
-          subtitle="One monthly price covers everything — hosting, AI, voice, SMS, booking engine, dashboard. No hidden fees."
+          subtitle="One monthly price covers hosting, AI, voice, booking engine, and dashboard. Twilio phone/SMS can be added once registration is complete."
         />
 
         <div className="max-w-2xl mx-auto mt-14">
@@ -704,7 +704,7 @@ export default function FeaturesPage() {
                   'Real-Time Lead Feed',
                   'Chat Transcript Archive',
                   'Custom Landing Page',
-                  'Twilio Phone Number',
+                  'Twilio Phone/SMS (Optional Add-On)',
                   'All Hosting & Infrastructure',
                   'OpenAI API Usage',
                   'DynamoDB Storage',
@@ -774,7 +774,7 @@ export default function FeaturesPage() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
           {[
             { pain: '"I miss calls at the gym"', fix: 'AI answers every call 24/7 with context-aware urgency.' },
-            { pain: '"I lose leads when I can\'t respond"', fix: 'AI responds instantly — phone, chat, and SMS.' },
+            { pain: '"I lose leads when I can\'t respond"', fix: 'AI responds instantly in web chat now, with phone/SMS optional after registration.' },
             { pain: '"I forget to upsell"', fix: 'AI automatically offers add-ons after every booking.' },
             { pain: '"I need a receptionist"', fix: 'LINDA is your AI Chief of Staff — fraction of the cost.' },
             { pain: '"I need to know what\'s happening"', fix: 'Dashboard shows real-time leads and transcripts.' },
@@ -940,7 +940,7 @@ function TechnicalDetails({ mounted }: { mounted: boolean }) {
         { label: 'Frontend', value: 'Next.js (latest) + React + Tailwind CSS + TypeScript' },
         { label: 'Backend', value: 'Next.js API Routes (primary) + AWS Lambda (SMS pipeline)' },
         { label: 'Database', value: 'AWS DynamoDB — 2 tables, pay-per-request, auto-scaling' },
-        { label: 'Phone/SMS', value: 'Twilio Programmable Voice + SMS' },
+        { label: 'Phone/SMS', value: 'Twilio Programmable Voice + SMS (optional until registration is approved)' },
         { label: 'Hosting', value: 'Vercel (edge-deployed, auto-scaling)' },
       ],
     },

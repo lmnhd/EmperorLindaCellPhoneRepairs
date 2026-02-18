@@ -13,7 +13,7 @@ from openai import OpenAI
 from utils import (
     create_lambda_response,
     get_brandon_state,
-    create_lead,
+    create_booking,
     get_available_slots,
     query_leads_for_date,
     DecimalEncoder
@@ -147,8 +147,8 @@ def execute_function(function_name: str, arguments: dict) -> dict:
             phone = arguments.get("phone")
             repair_type = arguments.get("repair_type")
             device = arguments.get("device", "Unknown Device")
-            
-            lead_id = create_lead(phone, repair_type, device, date, time)
+
+            lead_id = create_booking(phone, repair_type, device, date, time)
             return {
                 "success": True,
                 "lead_id": lead_id,

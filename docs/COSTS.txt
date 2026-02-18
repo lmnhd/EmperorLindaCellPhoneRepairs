@@ -1,0 +1,52 @@
+
+**Costs-Monthly**
+1. OpenAI (RTAPI): $10
+2. Render.com: $7
+3. Phone: $2
+4. SMS: $10
+
+My recommendation: Buy it. For the PoC demo:
+
+Buy the number ($1.15/month)
+Update your TWILIO_PHONE_NUMBER env var to +19045934780
+Re-point the webhook URLs in Twilio to your Lambda/Vercel endpoints
+You'll be able to send/receive test SMS immediately at low volume
+When you're ready for production, the A2P 10DLC registration process requires:
+
+Brand registration (~$4 one-time fee)
+Campaign registration (~$10/month)
+Use case: "Customer Care" or "Mixed"
+
+
+
+A2P 10DLC Campaign fee ($10/month recurring) — You mentioned it in the notes below but didn't add it to the cost list. This is mandatory for production SMS in the US.
+
+OpenAI text/Responses API — Your $10 covers the Realtime Voice API, but dispatcher.py (SMS handler) also calls OpenAI. At low volume it's probably $1-3/month, but it's a separate line item.
+
+AWS costs — Lambda, DynamoDB, API Gateway. At PoC/small-shop volume you'll almost certainly stay in the free tier, but worth noting: ~$0-2/month.
+
+Vercel — Frontend hosting. Free tier covers this easily at this scale: $0.
+
+Revised monthly cost picture:
+
+Item	Monthly
+OpenAI Realtime API (voice)	$10
+OpenAI Responses API (SMS/chat)	~$2
+Render.com (voice server)	$7
+Twilio phone number	$1.15
+Twilio SMS (~600 msgs)	$10
+A2P 10DLC campaign	$10
+AWS (Lambda/DDB/APIGW)	~$0-2
+Vercel	$0
+Total	~$42-44/month
+One-time costs: ~$4 (A2P brand registration)
+
+What to charge:
+
+For a local solo operator, 3-4x cost coverage is the floor, then you price to value (AI handles calls/texts 24/7 so Brandon doesn't have to):
+
+Tier	Price	Rationale
+Minimum viable	$99/mo	~2.3x costs, covers your time/support
+Sweet spot	$149/mo	~3.5x, leaves meaningful margin
+Premium (with setup fee)	$199/mo + $299 setup	If you're onboarding, configuring, training
+At $149/month your gross margin is ~$105/month per client. The value prop (never miss a repair lead, 24/7 auto-response) easily justifies $149 to a shop doing even $3K/month in repairs.

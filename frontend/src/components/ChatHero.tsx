@@ -222,6 +222,15 @@ export default function ChatHero() {
     setIsVoiceMode(false)
   }
 
+  const handleVoiceAssistantMessage = (content: string) => {
+    if (content.trim().length === 0) {
+      return
+    }
+
+    setHeroMessage(content)
+    setHeroTurn((current) => current + 1)
+  }
+
   const handleMicClick = async () => {
     if (busy || isVoiceMode) {
       return
@@ -244,21 +253,6 @@ export default function ChatHero() {
     } finally {
       setIsRequestingMic(false)
     }
-  }
-
-  if (isVoiceMode) {
-    return (
-      <VoiceChat
-        persona={persona}
-        onEndCall={handleVoiceCallEnd}
-        brandonStatus={brandonStatus}
-        brandonLocation={brandonLocation}
-        brandonNotes={brandonNotes}
-        voiceOverride={voiceOverride}
-        sessionId={sessionId}
-        handoffPrompt={voiceHandoffPrompt}
-      />
-    )
   }
 
   return (
@@ -316,6 +310,21 @@ export default function ChatHero() {
           </a>
         </div>
       </div>
+
+      {isVoiceMode && (
+        <VoiceChat
+          persona={persona}
+          onEndCall={handleVoiceCallEnd}
+          brandonStatus={brandonStatus}
+          brandonLocation={brandonLocation}
+          brandonNotes={brandonNotes}
+          voiceOverride={voiceOverride}
+          sessionId={sessionId}
+          handoffPrompt={voiceHandoffPrompt}
+          renderMode="hero"
+          onAssistantMessage={handleVoiceAssistantMessage}
+        />
+      )}
 
       <div className="absolute bottom-0 left-0 right-0 z-10 hero-gradient-overlay h-36" />
     </section>

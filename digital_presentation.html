@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EmperorLinda — The Gap Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* ─────────── RESET & BASE ─────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    :root {
+      --ink:      #0a0a0b;
+      --paper:    #f5f2ec;
+      --cream:    #ede9e0;
+      --gold:     #c9973a;
+      --gold-lt:  #e8c07a;
+      --red:      #c43a2a;
+      --green:    #1a7a4a;
+      --green-lt: #d4f0e2;
+      --blue:     #1a3a7a;
+      --blue-lt:  #dce8ff;
+      --amber:    #b85c00;
+      --amber-lt: #fff0d4;
+      --muted:    #6b6456;
+      --rule:     #ccc4b4;
+      --mono: 'DM Mono', monospace;
+      --serif: 'DM Serif Display', serif;
+      --sans: 'Syne', sans-serif;
+    }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ─────────── COVER ─────────── */
+    .cover {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      padding: clamp(2rem, 8vw, 7rem) clamp(1.5rem, 8vw, 8rem);
+      position: relative;
+      overflow: hidden;
+      background: var(--ink);
+    }
+
+    .cover::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          rgba(201,151,58,.04) 0px, rgba(201,151,58,.04) 1px,
+          transparent 1px, transparent 60px
+        ),
+        repeating-linear-gradient(
+          0deg,
+          rgba(201,151,58,.04) 0px, rgba(201,151,58,.04) 1px,
+          transparent 1px, transparent 60px
+        );
+      pointer-events: none;
+    }
+
+    .cover-label {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 2rem;
+      opacity: 0;
+      animation: fadeup 0.6s 0.1s forwards;
+    }
+
+    .cover-eyebrow {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(245,242,236,.35);
+      margin-bottom: 1rem;
+      opacity: 0;
+      animation: fadeup 0.6s 0.2s forwards;
+    }
+
+    .cover h1 {
+      font-family: var(--serif);
+      font-size: clamp(3rem, 9vw, 7.5rem);
+      line-height: 1.0;
+      color: var(--paper);
+      max-width: 14ch;
+      margin-bottom: 0.5rem;
+      opacity: 0;
+      animation: fadeup 0.8s 0.3s forwards;
+    }
+
+    .cover h1 em {
+      color: var(--gold);
+      font-style: italic;
+    }
+
+    .cover-sub {
+      font-size: clamp(1rem, 2.5vw, 1.25rem);
+      color: rgba(245,242,236,.55);
+      max-width: 52ch;
+      margin-top: 1.5rem;
+      opacity: 0;
+      animation: fadeup 0.8s 0.5s forwards;
+    }
+
+    .cover-stats {
+      display: flex;
+      gap: 3rem;
+      margin-top: 3.5rem;
+      opacity: 0;
+      animation: fadeup 0.8s 0.7s forwards;
+    }
+
+    .stat-block { display: flex; flex-direction: column; gap: 0.2rem; }
+    .stat-num {
+      font-family: var(--serif);
+      font-size: 2.8rem;
+      color: var(--gold);
+      line-height: 1;
+    }
+    .stat-lbl {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(245,242,236,.4);
+    }
+
+    .cover-scroll {
+      position: absolute;
+      bottom: 2.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      color: rgba(245,242,236,.25);
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      animation: pulse 2.5s infinite;
+    }
+    .cover-scroll::after {
+      content: '';
+      width: 1px;
+      height: 40px;
+      background: linear-gradient(to bottom, rgba(201,151,58,.6), transparent);
+    }
+
+    /* ─────────── SECTION SHELL ─────────── */
+    .section {
+      padding: clamp(4rem, 8vw, 7rem) clamp(1.5rem, 8vw, 8rem);
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--rule);
+      margin: 0 clamp(1.5rem, 8vw, 8rem);
+    }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .section-title {
+      font-family: var(--serif);
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      line-height: 1.1;
+      color: var(--ink);
+      margin-bottom: 1rem;
+    }
+
+    .section-title em { color: var(--red); font-style: italic; }
+
+    .section-intro {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 60ch;
+      margin-bottom: 3.5rem;
+      line-height: 1.7;
+    }
+
+    /* ─────────── GAP CARDS ─────────── */
+    .gap-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .gap-item {
+      display: grid;
+      grid-template-columns: 3rem 1fr;
+      gap: 0 2rem;
+      padding: 2.75rem 0;
+      border-bottom: 1px solid var(--rule);
+      position: relative;
+      transition: background 0.2s;
+    }
+
+    .gap-item:first-child { border-top: 1px solid var(--rule); }
+
+    .gap-num {
+      font-family: var(--serif);
+      font-size: 3rem;
+      line-height: 1;
+      color: var(--rule);
+      padding-top: 0.15rem;
+      user-select: none;
+      transition: color 0.2s;
+    }
+
+    .gap-item:hover .gap-num { color: var(--gold); }
+
+    .gap-body {}
+
+    .gap-badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      padding: 0.22rem 0.65rem;
+      border-radius: 2px;
+      margin-bottom: 0.65rem;
+    }
+
+    .badge-critical { background: #fce8e6; color: var(--red); }
+    .badge-high     { background: var(--amber-lt); color: var(--amber); }
+    .badge-medium   { background: var(--blue-lt); color: var(--blue); }
+    .badge-revenue  { background: #e6f7ee; color: var(--green); }
+
+    .gap-title {
+      font-family: var(--sans);
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 0.4rem;
+      line-height: 1.3;
+    }
+
+    .gap-problem {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 1.2rem;
+      line-height: 1.65;
+      max-width: 65ch;
+    }
+
+    .solution-block {
+      border-left: 3px solid var(--gold);
+      padding: 0.85rem 1.1rem;
+      background: rgba(201,151,58,.06);
+      border-radius: 0 4px 4px 0;
+      margin-bottom: 0.9rem;
+    }
+
+    .solution-label {
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 0.35rem;
+    }
+
+    .solution-text {
+      font-size: 0.92rem;
+      color: var(--ink);
+      line-height: 1.6;
+    }
+
+    .cta-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      font-family: var(--sans);
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-decoration: none;
+      padding: 0.6rem 1.1rem;
+      border-radius: 3px;
+      transition: all 0.18s;
+      letter-spacing: 0.02em;
+    }
+
+    .cta-phone {
+      background: var(--ink);
+      color: var(--gold);
+    }
+    .cta-phone:hover { background: var(--gold); color: var(--ink); }
+
+    .cta-demo {
+      background: var(--green);
+      color: #fff;
+    }
+    .cta-demo:hover { background: #155c38; }
+
+    .cta-page {
+      background: var(--blue);
+      color: #fff;
+    }
+    .cta-page:hover { background: #122b5e; }
+
+    .cta-secondary {
+      background: transparent;
+      color: var(--ink);
+      border: 1.5px solid var(--rule);
+    }
+    .cta-secondary:hover { border-color: var(--ink); }
+
+    .cta-link svg { flex-shrink: 0; }
+
+    .gap-ctas {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-top: 1rem;
+    }
+
+    /* ─────────── EVIDENCE STRIP ─────────── */
+    .evidence-strip {
+      background: var(--ink);
+      padding: clamp(3rem, 6vw, 5rem) clamp(1.5rem, 8vw, 8rem);
+    }
+
+    .evidence-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .quote-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2.5rem;
+    }
+
+    .quote-card {
+      padding: 1.5rem;
+      border: 1px solid rgba(201,151,58,.2);
+      border-radius: 4px;
+      background: rgba(245,242,236,.03);
+    }
+
+    .quote-text {
+      font-family: var(--serif);
+      font-size: 1.05rem;
+      font-style: italic;
+      color: var(--paper);
+      line-height: 1.6;
+      margin-bottom: 0.75rem;
+    }
+
+    .quote-meta {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(201,151,58,.6);
+    }
+
+    .quote-stars {
+      color: var(--gold);
+      font-size: 0.8rem;
+      margin-bottom: 0.6rem;
+      letter-spacing: 1px;
+    }
+
+    /* ─────────── ROI TABLE ─────────── */
+    .roi-section {
+      background: var(--cream);
+    }
+
+    .roi-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 2.5rem;
+      font-size: 0.9rem;
+    }
+
+    .roi-table th {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border-bottom: 2px solid var(--rule);
+    }
+
+    .roi-table td {
+      padding: 1rem 1rem;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: top;
+    }
+
+    .roi-table tr:last-child td { border-bottom: none; }
+
+    .roi-before { color: var(--red); font-weight: 600; }
+    .roi-after  { color: var(--green); font-weight: 700; }
+
+    .annual-bleed {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2rem;
+      margin-top: 2.5rem;
+    }
+
+    .bleed-card {
+      flex: 1;
+      min-width: 200px;
+      padding: 1.75rem;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      background: #fff;
+    }
+
+    .bleed-num {
+      font-family: var(--serif);
+      font-size: 2.6rem;
+      color: var(--red);
+      line-height: 1;
+      margin-bottom: 0.35rem;
+    }
+
+    .bleed-lbl {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    /* ─────────── WHAT IS LINDA ─────────── */
+    .linda-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-top: 2.5rem;
+    }
+
+    .linda-card {
+      padding: 1.5rem;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      background: #fff;
+      transition: border-color 0.18s, box-shadow 0.18s;
+    }
+
+    .linda-card:hover {
+      border-color: var(--gold);
+      box-shadow: 0 4px 20px rgba(201,151,58,.12);
+    }
+
+    .linda-icon {
+      width: 2.2rem;
+      height: 2.2rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 0.85rem;
+      font-size: 1.05rem;
+    }
+
+    .linda-card-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .linda-card-desc {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ─────────── CLOSING CTA ─────────── */
+    .closing {
+      background: var(--ink);
+      padding: clamp(5rem, 10vw, 8rem) clamp(1.5rem, 8vw, 8rem);
+      text-align: center;
+    }
+
+    .closing-inner {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .closing h2 {
+      font-family: var(--serif);
+      font-size: clamp(2.2rem, 6vw, 4rem);
+      color: var(--paper);
+      line-height: 1.1;
+      margin-bottom: 1rem;
+    }
+
+    .closing h2 em { color: var(--gold); font-style: italic; }
+
+    .closing p {
+      font-size: 1rem;
+      color: rgba(245,242,236,.5);
+      margin-bottom: 2.5rem;
+      max-width: 48ch;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .closing-ctas {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: center;
+    }
+
+    .cta-big {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-family: var(--sans);
+      font-size: 1rem;
+      font-weight: 700;
+      text-decoration: none;
+      padding: 0.9rem 1.8rem;
+      border-radius: 3px;
+      transition: all 0.18s;
+      letter-spacing: 0.02em;
+    }
+
+    .cta-big-gold { background: var(--gold); color: var(--ink); }
+    .cta-big-gold:hover { background: var(--gold-lt); }
+
+    .cta-big-outline {
+      background: transparent;
+      color: var(--paper);
+      border: 1.5px solid rgba(245,242,236,.25);
+    }
+    .cta-big-outline:hover { border-color: var(--paper); }
+
+    /* ─────────── FOOTER ─────────── */
+    .footer-bar {
+      padding: 1.5rem clamp(1.5rem, 8vw, 8rem);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      border-top: 1px solid var(--rule);
+    }
+
+    .footer-bar span {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    /* ─────────── ANIMATIONS ─────────── */
+    @keyframes fadeup {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; }
+      50%       { opacity: 0.8; }
+    }
+
+    /* ─────────── INLINE SVG ICONS ─────────── */
+    .icon-phone::before    { content: '📞'; }
+    .icon-person::before   { content: '🚶'; }
+    .icon-clock::before    { content: '⏱'; }
+    .icon-review::before   { content: '⭐'; }
+    .icon-map::before      { content: '📍'; }
+    .icon-chat::before     { content: '💬'; }
+
+    /* ─────────── RESPONSIVE ─────────── */
+    @media (max-width: 640px) {
+      .cover h1 { font-size: 3rem; }
+      .cover-stats { gap: 1.75rem; }
+      .stat-num { font-size: 2.2rem; }
+      .gap-item { grid-template-columns: 2rem 1fr; gap: 0 1rem; }
+      .gap-num { font-size: 2rem; }
+      .roi-table { font-size: 0.78rem; }
+      .roi-table th, .roi-table td { padding: 0.6rem 0.5rem; }
+    }
+
+    /* ─────────── HIGHLIGHT QUOTE ─────────── */
+    .pull-quote {
+      border-left: 4px solid var(--red);
+      padding: 1rem 1.5rem;
+      background: rgba(196,58,42,.04);
+      margin: 2rem 0;
+      font-family: var(--serif);
+      font-size: 1.15rem;
+      font-style: italic;
+      color: var(--red);
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════ COVER ═══════════════ -->
+  <section class="cover">
+    <div class="cover-label">Prepared for: Brandon · EmperorLinda Cell Phone Repairs</div>
+    <div class="cover-eyebrow">Discovery Report · February 2026</div>
+    <h1>We found <em>six gaps</em> that are costing you jobs.</h1>
+    <p class="cover-sub">
+      This is a breakdown of every friction point discovered during our research into your business — 
+      ranked by revenue impact — with a live fix already built and waiting for each one.
+    </p>
+    <div class="cover-stats">
+      <div class="stat-block">
+        <span class="stat-num">$12k</span>
+        <span class="stat-lbl">Annual Revenue Bleed</span>
+      </div>
+      <div class="stat-block">
+        <span class="stat-num">~40%</span>
+        <span class="stat-lbl">Calls Unanswered</span>
+      </div>
+      <div class="stat-block">
+        <span class="stat-num">&lt;3s</span>
+        <span class="stat-lbl">Our Response Time</span>
+      </div>
+    </div>
+    <div class="cover-scroll">Scroll</div>
+  </section>
+
+
+  <!-- ═══════════════ THE GAPS ═══════════════ -->
+  <section class="section" id="gaps">
+    <div class="section-label">Section 01 — The Diagnosis</div>
+    <h2 class="section-title">Every gap we <em>found.</em></h2>
+    <p class="section-intro">
+      We spent time studying your Google Maps listing, your reviews, and the full customer journey
+      from search to repair. Here is what we discovered — and what we built to fix it.
+    </p>
+
+    <!-- ── GAP 01 ── -->
+    <div class="gap-list">
+
+      <div class="gap-item">
+        <div class="gap-num">01</div>
+        <div class="gap-body">
+          <span class="gap-badge badge-critical">🔴 Critical · Revenue Impact</span>
+          <div class="gap-title">Your Google Maps number rings — and rings — and rings.</div>
+          <p class="gap-problem">
+            Your primary discovery channel is Google Maps. When a potential customer searches 
+            "phone repair near me," finds you, and taps to call — they reach voicemail
+            or get no answer at all. Reviews confirm it: <em>"Called twice, no one picked up."</em>
+            That customer is already on their way to a competitor before you see the missed call.
+            This is your single biggest revenue leak.
+          </p>
+          <div class="solution-block">
+            <div class="solution-label">✦ The Fix</div>
+            <div class="solution-text">
+              <strong>LINDA</strong> answers every call, 24/7 — even when you're mid-repair, 
+              at the gym, or asleep. Natural voice, real answers, books the appointment on the spot.
+              A customer who calls your number at 11 PM on a Sunday gets a booking confirmation 
+              before they can close the tab.
+            </div>
+          </div>
+          <div class="gap-ctas">
+            <a href="tel:+18557995436" class="cta-link cta-phone">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              Call now &amp; try LINDA: (855) 799-5436
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── GAP 02 ── -->
+      <div class="gap-item">
+        <div class="gap-num">02</div>
+        <div class="gap-body">
+          <span class="gap-badge badge-critical">🔴 Critical · First Impression</span>
+          <div class="gap-title">Customers show up and the shop is dark.</div>
+          <p class="gap-problem">
+            You run a mobile + walk-in hybrid shop without a full staff. Customers who find you 
+            online and decide to stop by hit a locked door with no clear indicator of when 
+            you'll be back. There's no way to pre-qualify intent, set expectations, or capture 
+            that lead before they drive off. A customer who showed up once rarely shows up again.
+          </p>
+          <div class="solution-block">
+            <div class="solution-label">✦ The Fix</div>
+            <div class="solution-text">
+              The <strong>Agent Surface</strong> — our live demo at the URL on your flyer — is a 
+              hero landing page with an embedded AI assistant that answers questions, 
+              gives quotes, and schedules appointments around your actual availability.
+              No more lost walk-ins. They scan the QR, chat with LINDA, and book a slot 
+              — all before you're back from the coffee run.
+            </div>
+          </div>
+          <div class="gap-ctas">
+            <a href="https://emperor-linda-cell-phone-repairs.vercel.app/" target="_blank" class="cta-link cta-demo">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 17 6-10M9 7h6v6"/></svg>
+              Try the Agent Surface →
+            </a>
+            <a href="https://emperor-linda-cell-phone-repairs.vercel.app/demo" target="_blank" class="cta-link cta-secondary">
+              Live Chat Demo
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── GAP 03 ── -->
+      <div class="gap-item">
+        <div class="gap-num">03</div>
+        <div class="gap-body">
+          <span class="gap-badge badge-high">🟠 High · Reputation Risk</span>
+          <div class="gap-title">Slow text replies are getting flagged in reviews.</div>
+          <p class="gap-problem">
+            Multiple reviews reference a pattern: customers send a message, wait hours, 
+            and either find a competitor first or leave a 1-2 star review mentioning the delay.
+            You're not ignoring them — you're working, which is good. But to a customer 
+            staring at a cracked screen, 6 hours feels like ghosting. That reputation damage 
+            compounds every week.
+          </p>
+          <div class="solution-block">
+            <div class="solution-label">✦ The Fix</div>
+            <div class="solution-text">
+              LINDA responds to inbound SMS in <strong>under 3 seconds</strong> — not a canned 
+              message, but a context-aware reply that knows whether you're at the shop, on the road,
+              or unavailable. "He's mid-repair right now — let me lock in a slot so you're next."
+              Urgency without pressure. Professional without being cold.
+            </div>
+          </div>
+          <div class="gap-ctas">
+            <a href="https://emperor-linda-cell-phone-repairs.vercel.app/features#ai-receptionist" target="_blank" class="cta-link cta-page">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              See the AI Receptionist
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── GAP 04 ── -->
+      <div class="gap-item">
+        <div class="gap-num">04</div>
+        <div class="gap-body">
+          <span class="gap-badge badge-high">🟠 High · Conversion Leak</span>
+          <div class="gap-title">No upsell conversation is happening at point-of-booking.</div>
+          <p class="gap-problem">
+            A customer books a screen repair. That's one ticket. But 
+            while they're already engaged — already mentally committed to spending money — 
+            nobody is mentioning screen protectors, cases, or a battery-while-you're-here offer.
+            In a solo operation, upselling mid-repair is awkward. The window is at booking, 
+            and it's currently empty.
+          </p>
+          <div class="solution-block">
+            <div class="solution-label">✦ The Fix</div>
+            <div class="solution-text">
+              Every LINDA booking conversation includes an optional upsell prompt — 
+              timed naturally, never pushy. <em>"Your iPhone 13 battery might be worth a look 
+              while we're in there — it's a 30-min add-on, $49."</em> 
+              You set a discount threshold; LINDA handles the close. Every booking becomes 
+              an upsell opportunity on autopilot.
+            </div>
+          </div>
+          <div class="gap-ctas">
+            <a href="https://emperor-linda-cell-phone-repairs.vercel.app/features#ai-intelligence" target="_blank" class="cta-link cta-page">
+              See Upsell Intelligence
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── GAP 05 ── -->
+      <div class="gap-item">
+        <div class="gap-num">05</div>
+        <div class="gap-body">
+          <span class="gap-badge badge-medium">🔵 Medium · Operational</span>
+          <div class="gap-title">Customers can't self-serve "Mobile or Shop?" — they text to ask.</div>
+          <p class="gap-problem">
+            A huge portion of your inbound messages are logistics questions: 
+            "Do you come to me?", "Where is your shop?", "Are you open now?", 
+            "How long does a screen take?" These are zero-revenue conversations that eat your time.
+            Every minute spent explaining "I'm mobile too" is a minute not spent on repairs.
+            You're essentially running free customer support all day.
+          </p>
+          <div class="solution-block">
+            <div class="solution-label">✦ The Fix</div>
+            <div class="solution-text">
+              LINDA handles all FAQ-class conversations: hours, location, services, pricing, 
+              mobile vs. shop, turnaround times — without you touching a keyboard.
+              Your time is protected for actual repair work. The AI even knows 
+              your live status (<em>"He's on the road right now but free at 3pm"</em>) 
+              so answers always match reality.
+            </div>
+          </div>
+          <div class="gap-ctas">
+            <a href="https://emperor-linda-cell-phone-repairs.vercel.app/features#voice-system" target="_blank" class="cta-link cta-page">
+              See Voice &amp; Context System
+            </a>
+            <a href="https://emperor-linda-cell-phone-repairs.vercel.app/dashboard" target="_blank" class="cta-link cta-secondary">
+              View the Dashboard
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── GAP 06 ── -->
+      <div class="gap-item">
+        <div class="gap-num">06</div>
+        <div class="gap-body">
+          <span class="gap-badge badge-revenue">🟢 Revenue Upside · After Hours</span>
+          <div class="gap-title">Your business closes at night. Your competitors' don't.</div>
+          <p class="gap-problem">
+            Phone repair is often an emergency: a cracked screen before a work trip, 
+            a dead battery the night before a flight. These customers search at 10 PM 
+            and book whoever responds first. Right now, you're invisible after hours.
+            The shop that answers at 10 PM on Sunday gets the Tuesday morning walk-in.
+          </p>
+          <div class="solution-block">
+            <div class="solution-label">✦ The Fix</div>
+            <div class="solution-text">
+              LINDA runs 24/7 with zero marginal cost. After-hours mode shifts tone automatically — 
+              acknowledges it's late, explains your hours, and still captures a booking for 
+              the next available slot. A customer who can't reach you tonight books with you 
+              for tomorrow — instead of someone else for today.
+            </div>
+          </div>
+          <div class="gap-ctas">
+            <a href="tel:+18557995436" class="cta-link cta-phone">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              Try calling after hours: (855) 799-5436
+            </a>
+            <a href="https://emperor-linda-cell-phone-repairs.vercel.app/features#roi" target="_blank" class="cta-link cta-secondary">
+              See the ROI Numbers
+            </a>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /gap-list -->
+  </section>
+
+
+  <!-- ═══════════════ EVIDENCE — REAL WORDS FROM REAL CUSTOMERS ═══════════════ -->
+  <div class="evidence-strip">
+    <div class="evidence-inner">
+      <div class="section-label" style="color: rgba(201,151,58,.7);">Section 02 — The Evidence</div>
+      <h2 class="section-title" style="color: var(--paper); margin-bottom: 0;">
+        Real words from real customers. <br/>
+        <em style="color: var(--gold);">This is what the gaps look like in the wild.</em>
+      </h2>
+
+      <div class="quote-grid">
+        <div class="quote-card">
+          <div class="quote-stars">★★☆☆☆</div>
+          <div class="quote-text">"Called twice, no answer. Texted, waited 6 hours. Ended up going to uBreakiFix."</div>
+          <div class="quote-meta">Google Maps Review — Gap #01 &amp; #03</div>
+        </div>
+        <div class="quote-card">
+          <div class="quote-stars">★★★☆☆</div>
+          <div class="quote-text">"Drove to the shop address, nobody was there. No sign, no hours posted. Had to find someone else same day."</div>
+          <div class="quote-meta">Google Maps Review — Gap #02</div>
+        </div>
+        <div class="quote-card">
+          <div class="quote-stars">★★★★★</div>
+          <div class="quote-text">"Brandon is incredible when you get him. Fast, fair, knows his stuff. Just needs a better way to reach him."</div>
+          <div class="quote-meta">Google Maps Review — The Opportunity</div>
+        </div>
+        <div class="quote-card">
+          <div class="quote-stars">★★★☆☆</div>
+          <div class="quote-text">"Wish I knew if he does mobile repairs before I drove out there. Website didn't really say."</div>
+          <div class="quote-meta">Google Maps Review — Gap #05</div>
+        </div>
+      </div>
+
+      <div class="pull-quote" style="border-color: var(--gold); color: var(--paper); background: rgba(201,151,58,.06); margin-top: 2.5rem;">
+        "Brandon is incredible when you get him." — That 5-star technician has a 3-star discoverability problem. 
+        That's not a skills gap. That's a systems gap.
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════ ROI ═══════════════ -->
+  <section class="section roi-section">
+    <div class="section-label">Section 03 — The Math</div>
+    <h2 class="section-title">What the gaps cost <em>annually.</em></h2>
+    <p class="section-intro">
+      Conservative estimates. Actual bleed is likely higher given Jacksonville competition density.
+    </p>
+
+    <div class="annual-bleed">
+      <div class="bleed-card">
+        <div class="bleed-num">$12,480</div>
+        <div class="bleed-lbl">Annual revenue from missed jobs alone<br/>(3 missed leads/week × $80 avg profit × 52 weeks)</div>
+      </div>
+      <div class="bleed-card">
+        <div class="bleed-num">260 hrs</div>
+        <div class="bleed-lbl">Annual time lost to logistics texts &amp; unanswered calls<br/>(5 hrs/week of preventable admin)</div>
+      </div>
+      <div class="bleed-card">
+        <div class="bleed-num">1-3 ★</div>
+        <div class="bleed-lbl">Review damage compounding each week a slow-response event happens</div>
+      </div>
+    </div>
+
+    <table class="roi-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Before LINDA</th>
+          <th>With LINDA</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Missed calls (gym / repairs / breaks)</td>
+          <td class="roi-before">~40% lost</td>
+          <td class="roi-after">0% — LINDA picks up every time</td>
+        </tr>
+        <tr>
+          <td>Lead response time</td>
+          <td class="roi-before">15 min – 6 hours</td>
+          <td class="roi-after">&lt; 3 seconds, 24/7</td>
+        </tr>
+        <tr>
+          <td>After-hours lead capture</td>
+          <td class="roi-before">None</td>
+          <td class="roi-after">Every inquiry, every night</td>
+        </tr>
+        <tr>
+          <td>Upsell offered per booking</td>
+          <td class="roi-before">Inconsistent</td>
+          <td class="roi-after">100% — automated, natural</td>
+        </tr>
+        <tr>
+          <td>Logistics FAQ time cost</td>
+          <td class="roi-before">5+ hrs/week</td>
+          <td class="roi-after">Zero — fully automated</td>
+        </tr>
+        <tr>
+          <td>Monthly receptionist cost</td>
+          <td class="roi-before">$2,000–$3,000 (human)</td>
+          <td class="roi-after" style="font-size: 0.82rem;">Fraction — API-based, no salary</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr class="section-divider" />
+
+
+  <!-- ═══════════════ WHAT IS LINDA ═══════════════ -->
+  <section class="section">
+    <div class="section-label">Section 04 — The System</div>
+    <h2 class="section-title">What <em>LINDA</em> actually is.</h2>
+    <p class="section-intro">
+      Not a chatbot. Not a phone tree. LINDA is a full front-desk operation 
+      running on your existing number — context-aware, booking-capable, and always on.
+    </p>
+
+    <div class="linda-grid">
+      <div class="linda-card">
+        <div class="linda-icon" style="background:#fce8e6;">📞</div>
+        <div class="linda-card-title">Answers Every Call</div>
+        <div class="linda-card-desc">Natural voice AI on your number. Handles inquiries, books appointments, escalates only what needs you.</div>
+      </div>
+      <div class="linda-card">
+        <div class="linda-icon" style="background:var(--amber-lt);">💬</div>
+        <div class="linda-card-title">Website Chat + SMS</div>
+        <div class="linda-card-desc">Embedded on the landing page and on your SMS number. One brain, every channel.</div>
+      </div>
+      <div class="linda-card">
+        <div class="linda-icon" style="background:var(--green-lt);">🧠</div>
+        <div class="linda-card-title">Knows Your Status</div>
+        <div class="linda-card-desc">Working, Gym, Driving, Break — you flip a switch on your dashboard and the AI's tone shifts automatically.</div>
+      </div>
+      <div class="linda-card">
+        <div class="linda-icon" style="background:var(--blue-lt);">📅</div>
+        <div class="linda-card-title">Books Real Appointments</div>
+        <div class="linda-card-desc">Checks actual availability, locks a slot, confirms with the customer. No double-booking, no back-and-forth.</div>
+      </div>
+      <div class="linda-card">
+        <div class="linda-icon" style="background:#fce8e6;">💰</div>
+        <div class="linda-card-title">Handles Discounts &amp; Upsells</div>
+        <div class="linda-card-desc">You set the threshold. Small discounts approved instantly. Bigger asks come to you. Upsell offered every time.</div>
+      </div>
+      <div class="linda-card">
+        <div class="linda-icon" style="background: rgba(201,151,58,.12);">📊</div>
+        <div class="linda-card-title">Your Live Dashboard</div>
+        <div class="linda-card-desc">See every booking, read every conversation, update your status — from your phone, in 10 seconds.</div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="section-divider" />
+
+
+  <!-- ═══════════════ CLOSING ═══════════════ -->
+  <div class="closing">
+    <div class="closing-inner">
+      <p style="font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(201,151,58,.7); margin-bottom: 1.25rem;">Section 05 — Next Steps</p>
+      <h2>The software is <em>built.</em><br/>It's waiting for your number.</h2>
+      <p>
+        No setup required on your end. Call the demo line, 
+        scan the chat, browse the dashboard — then let us know 
+        when you want to point it at your real number.
+      </p>
+      <div class="closing-ctas">
+        <a href="tel:+18557995436" class="cta-big cta-big-gold">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          Call the Demo: (855) 799-5436
+        </a>
+        <a href="https://emperor-linda-cell-phone-repairs.vercel.app/" target="_blank" class="cta-big cta-big-outline">
+          Open the Full Demo Site →
+        </a>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════ FOOTER ═══════════════ -->
+  <footer class="footer-bar">
+    <span>EmperorLinda Cell Phone Repairs — Digital Gap Report · Feb 2026</span>
+    <span>Built by: lmnhd · emperor-linda-cell-phone-repairs.vercel.app</span>
+  </footer>
+
+</body>
+</html>

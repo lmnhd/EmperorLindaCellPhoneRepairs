@@ -8,8 +8,3 @@
 
 
 
-
-**Costs-Monthly**
-1. OpenAI (RTAPI): $10
-2. Render.com: $7
-3. Twilio: $5
