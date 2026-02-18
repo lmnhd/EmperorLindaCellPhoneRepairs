@@ -277,7 +277,8 @@ The pitch page always contains exactly these five sections in this order:
 - Headline: `"What [SYSTEM NAME] actually is."`
 - Short clarifier: what it is NOT (chatbot, phone tree), what it IS
 - Capability cards grid (2–3 columns): icon + title + 1–2 sentence description
-- 2 CTAs: "See all features" + "Explore the dashboard"
+- Required CTA: "Explore the dashboard"
+- Optional CTA: "See all features" (only when `/features` exists for this target)
 
 ### Section 05 — Closing / Next Steps
 - Label: `Section 05 — Next Steps`
@@ -384,12 +385,38 @@ Use `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=[URL]` for th
 presentation_restored.html (paper, printed)
   └── QR code → /pitch (digital, on deployed app)
                   └── CTAs → / (landing + chat demo)
-                           → /features (full feature breakdown)
+                           → /features (optional full feature breakdown)
                            → /dashboard (live admin panel)
                            → tel:[DEMO_NUMBER] (live voice demo)
 ```
 
 The pitch page is part of the deployed app — it shares the same design system, DynamoDB state, and live demo infrastructure. When the prospect taps a CTA on the pitch page, they are interacting with the real system.
+
+---
+
+## Optional Companion Artifact — Features Page (`/features`)
+
+The Features page is optional and **not** part of the two-layer core presentation system. Use it as a companion artifact when the build is complex enough that a full implementation rundown improves clarity.
+
+### Purpose
+- Provide a complete checklist-style rundown of everything built in the app
+- Support deeper technical review after the prospect sees `/pitch`
+- Serve as implementation evidence when the system has many moving parts
+
+### Decision Rule (Complexity-Based)
+
+Create `/features` only when one or more are true:
+- The PoC has many distinct capabilities that cannot be explained clearly on one pitch section
+- Multiple channels are implemented (for example voice + chat + SMS + dashboard flows)
+- There is value in a full feature-by-feature verification pass with the prospect
+
+Do **not** create `/features` for simple builds where `/pitch` already communicates the full value clearly.
+
+### Scope Requirements (When Included)
+- Pure feature rundown/checklist format — no extra sales narrative
+- Every listed feature must exist in the deployed app (no placeholders)
+- Keep it aligned with the Discovery → PoC → Pitch traceability chain
+- Link to `/features` from Section 04 on `/pitch` only when the page exists
 
 ---
 

@@ -12,6 +12,7 @@ interface UserMessagePanelProps {
 export default function UserMessagePanel({ messages }: UserMessagePanelProps) {
   const [collapsed, setCollapsed] = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [showMobileFab, setShowMobileFab] = useState(true)
   const desktopPanelBodyRef = useRef<HTMLDivElement>(null)
   const mobilePanelBodyRef = useRef<HTMLDivElement>(null)
 
@@ -31,6 +32,26 @@ export default function UserMessagePanel({ messages }: UserMessagePanelProps) {
       mobilePanelBodyRef.current.scrollTop = mobilePanelBodyRef.current.scrollHeight
     }
   }, [historyMessages.length])
+
+  useEffect(() => {
+    const mobileQuery = window.matchMedia('(max-width: 1023px)')
+
+    const syncFabVisibility = () => {
+      if (!mobileQuery.matches) {
+        setShowMobileFab(true)
+        return
+      }
+
+      setShowMobileFab(window.scrollY < 24)
+    }
+
+    syncFabVisibility()
+    window.addEventListener('scroll', syncFabVisibility, { passive: true })
+
+    return () => {
+      window.removeEventListener('scroll', syncFabVisibility)
+    }
+  }, [])
 
   return (
     <>
@@ -115,7 +136,9 @@ export default function UserMessagePanel({ messages }: UserMessagePanelProps) {
         </motion.div>
       </div>
 
-      <div className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2 lg:hidden">
+      <div
+        className={`fixed bottom-5 left-1/2 z-40 -translate-x-1/2 lg:hidden transition-all duration-200 ${showMobileFab ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+      >
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
