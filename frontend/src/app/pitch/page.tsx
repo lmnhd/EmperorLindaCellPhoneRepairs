@@ -87,9 +87,10 @@ const GAPS: Gap[] = [
     problem:
       'Multiple reviews reference the same pattern: customer sends a message, waits hours, finds a competitor first or leaves a 1-2 star review mentioning the delay. You\'re not ignoring them — you\'re working, which is the whole point. But to a customer staring at a cracked screen, 6 hours feels like ghosting. That reputation damage compounds every week.',
     solution:
-      'LINDA responds to inbound SMS in under 3 seconds — not a canned message, but a context-aware reply that knows whether you\'re at the shop, on the road, or unavailable. "He\'s mid-repair right now — let me lock in a slot so you\'re next." Urgency without pressure.',
+      'LINDA responds to inbound SMS in under 3 seconds — not a canned message, but a context-aware reply that knows whether you\'re at the shop, on the road, or unavailable. "He\'s mid-repair right now — let me lock in a slot so you\'re next." Urgency without pressure. The SMS webhook is live on (904) 650-3007 — one carrier registration step away from delivering.',
     ctas: [
-      { label: 'See the AI Receptionist', href: '/features#ai-receptionist', variant: 'primary' },
+      { label: 'Try the AI brain now (web chat)', href: '/', variant: 'primary' },
+      { label: 'See the AI Receptionist', href: '/features#ai-receptionist', variant: 'secondary' },
     ],
   },
   {
@@ -144,7 +145,7 @@ const QUOTES: Quote[] = [
 
 const CAPABILITIES: LindaCapability[] = [
   { icon: <Phone size={16} />, title: 'Answers Every Call', desc: 'Natural voice AI on your number. Handles inquiries, books appointments, escalates only what needs you.', bg: 'bg-red-900/30' },
-  { icon: <MessageSquare size={16} />, title: 'Website Chat + SMS', desc: 'Embedded on the landing page and on your SMS number. One brain, every channel.', bg: 'bg-emperor-gold/10' },
+  { icon: <MessageSquare size={16} />, title: 'Website Chat + SMS', desc: 'Live on the landing page today. SMS webhook deployed on (904) 650-3007 — one-time carrier registration activates it (A2P 10DLC, ~$14, 1-day approval). Same AI brain, every channel.', bg: 'bg-emperor-gold/10' },
   { icon: <Brain size={16} />, title: 'Knows Your Status', desc: 'Working, Gym, Driving, Break — you flip a switch and the AI\'s tone shifts automatically.', bg: 'bg-accent-emerald/10' },
   { icon: <Calendar size={16} />, title: 'Books Real Appointments', desc: 'Checks actual availability, locks a slot, confirms with the customer. No double-booking.', bg: 'bg-accent-blue/10' },
   { icon: <ShoppingBag size={16} />, title: 'Handles Upsells & Discounts', desc: 'You set the threshold. Discounts approved instantly. Upsell offered every time.', bg: 'bg-red-900/20' },
