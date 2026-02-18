@@ -11,6 +11,8 @@ import {
   Car,
   Coffee,
   Phone,
+  PhoneCall,
+  MapPin,
   Bell,
   MessageSquare,
   Calendar,
@@ -26,6 +28,10 @@ import {
   BarChart3,
   Bot,
   CheckCircle,
+  Plus,
+  Trash2,
+  DollarSign,
+  ListChecks,
 } from 'lucide-react'
 import ChatLogOverlay from '@/components/ChatLogOverlay'
 import AgentPromptControlPanel from '@/components/AgentPromptControlPanel'
@@ -108,6 +114,8 @@ interface Lead {
   appointment_date: string
   appointment_time: string
   status: string
+  lead_type?: 'appointment' | 'callback' | 'on_site'
+  notes?: string
   created_at: string
 }
 
@@ -121,6 +129,8 @@ interface AssistantConfig {
   voice: VoiceName
   assistantName: string
   persona: string
+  servicesBlock: string    // kept for DynamoDB compat (serialised from serviceLines)
+  serviceLines: string[]   // UI list — each item is one service entry
 }
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
@@ -180,6 +190,25 @@ export default function DashboardPage() {
   const [leads,        setLeads]        = useState<Lead[]>([])
   const [leadsLoading, setLeadsLoading] = useState(true)
   const [chatLogOpen,  setChatLogOpen]  = useState(false)
+  const [isMobile,     setIsMobile]     = useState(false)
+
+  const DEFAULT_SERVICE_LINES = [
+    'Screen replacement: starting at $79 (iPhone), $89 (Samsung)',
+    'Battery replacement: starting at $49',
+    'Charging port repair: starting at $59',
+    'Water damage assessment: $39 diagnostic fee',
+    'Back glass replacement: starting at $69',
+    'On-site repair: additional $20 service fee',
+    'Remote diagnostic: free via phone/video',
+    'All repairs include a 90-day warranty. Most done in under an hour.',
+    'SERVICE TYPES: Walk-in | On-site ($20 fee) | Remote (free diagnostic)',
+  ]
+
+  const DEFAULT_SERVICES_BLOCK =
+    'SERVICES & PRICING (approximate — always say "starting at"):\n' +
+    DEFAULT_SERVICE_LINES.map(l => `- ${l}`).join('\n')
+
+  const [newServiceText, setNewServiceText] = useState('')
 
   const [config, setConfig] = useState<AssistantConfig>({
     aiAnswersCalls: true,
@@ -187,10 +216,12 @@ export default function DashboardPage() {
     autoUpsell:     true,
     maxDiscount:    15,
     greeting:       "Hey! Thanks for reaching out to EmperorLinda Cell Phone Repairs. How can I help you today?",
-    specialInfo:    "",
+    specialInfo:    '',
     voice:          'nova',
     assistantName:  'Linda',
     persona:        'professional',
+    servicesBlock:  DEFAULT_SERVICES_BLOCK,
+    serviceLines:   DEFAULT_SERVICE_LINES,
   })
 
   const selectedNameConfig = ASSISTANT_NAMES.find(n => n.value === config.assistantName) ?? ASSISTANT_NAMES[0]
@@ -232,6 +263,13 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  useEffect(() => {
     const fetchLeads = async () => {
       try {
         const res  = await fetch('/api/leads')
@@ -271,6 +309,16 @@ export default function DashboardPage() {
             persona:        agentTone            || s.persona || prev.persona,
             specialInfo:    s.special_info       || '',
             greeting:       s.greeting           || prev.greeting,
+            servicesBlock:  s.services_block     || prev.servicesBlock,
+            serviceLines:   (() => {
+              const raw = s.services_block as string | undefined
+              if (!raw) return prev.serviceLines
+              // Stored as newline-separated lines (with optional leading dash+space)
+              const parsed = raw.split('\n')
+                .map((l: string) => l.replace(/^[-\s]+/, '').trim())
+                .filter((l: string) => l.length > 0 && !l.startsWith('SERVICES &'))
+              return parsed.length > 0 ? parsed : prev.serviceLines
+            })(),
             maxDiscount:    s.max_discount      !== undefined ? s.max_discount      : prev.maxDiscount,
             aiAnswersCalls: s.ai_answers_calls  !== undefined ? s.ai_answers_calls  : prev.aiAnswersCalls,
             aiAnswersSms:   s.ai_answers_sms    !== undefined ? s.ai_answers_sms    : prev.aiAnswersSms,
@@ -310,6 +358,8 @@ export default function DashboardPage() {
             ai_answers_calls: config.aiAnswersCalls,
             ai_answers_sms:   config.aiAnswersSms,
             auto_upsell:      config.autoUpsell,
+            services_block:   'SERVICES & PRICING (approximate — always say "starting at"):\n' +
+                              config.serviceLines.map(l => `- ${l}`).join('\n'),
           }),
         }),
         // Keep agent_shared_tone in sync — it is the source of truth for persona/tone
@@ -622,6 +672,90 @@ export default function DashboardPage() {
                 </div>
               </Panel>
             </div>
+
+            {/* Services & Pricing */}
+            <div>
+
+              <Panel>
+                <PanelHeader
+                  icon={DollarSign}
+                  title="Services &amp; Pricing"
+                  aside={<span className="text-[10px] font-mono text-emperor-gold/40 border border-emperor-gold/20 rounded px-1.5 py-0.5">{config.serviceLines.length} items active</span>}
+                />
+                <p className="text-[11px] text-emperor-cream/25 font-mono mb-3">
+                  Add, edit, or remove services. LINDA quotes from this list on every call and chat.
+                </p>
+
+                <div className="space-y-1.5 mb-4">
+                  {config.serviceLines.map((line, idx) => (
+                    <div key={idx} className="flex items-start gap-2 group" title={line}>
+                      <span className="text-[10px] font-mono text-emperor-gold/40 mt-2.5 w-4 shrink-0 text-right">-</span>
+                      <input
+                        type="text"
+                        value={line}
+                        onChange={(e) => {
+                          const updated = [...config.serviceLines]
+                          updated[idx] = e.target.value
+                          setConfig(prev => ({ ...prev, serviceLines: updated }))
+                          setStatusSaved(false)
+                        }}
+                        className="input-emperor !py-1.5 text-xs font-mono flex-1 min-w-0"
+                      />
+                      <button
+                        onClick={() => {
+                          const updated = config.serviceLines.filter((_, i) => i !== idx)
+                          setConfig(prev => ({ ...prev, serviceLines: updated }))
+                          setStatusSaved(false)
+                        }}
+                        className="mt-1.5 p-1.5 rounded-lg text-emperor-cream/15 hover:text-red-400/70 hover:bg-red-400/5 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                        title="Remove item"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add service line */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newServiceText}
+                    onChange={(e) => setNewServiceText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newServiceText.trim()) {
+                        setConfig(prev => ({ ...prev, serviceLines: [...prev.serviceLines, newServiceText.trim()] }))
+                        setNewServiceText('')
+                        setStatusSaved(false)
+                      }
+                    }}
+                    className="input-emperor !py-1.5 text-xs font-mono flex-1"
+                    placeholder="e.g. iPad screen repair: starting at $99"
+                  />
+                  <button
+                    onClick={() => {
+                      if (!newServiceText.trim()) return
+                      setConfig(prev => ({ ...prev, serviceLines: [...prev.serviceLines, newServiceText.trim()] }))
+                      setNewServiceText('')
+                      setStatusSaved(false)
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-emperor-gold/10 border border-emperor-gold/20 text-emperor-gold hover:bg-emperor-gold/20 transition-colors shrink-0"
+                    title="Add service"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => { setConfig(prev => ({ ...prev, serviceLines: DEFAULT_SERVICE_LINES })); setStatusSaved(false) }}
+                  className="mt-3 text-[10px] font-mono text-emperor-cream/20 hover:text-emperor-gold/60 transition-colors"
+                >
+                  ↺ reset to defaults
+                </button>
+              </Panel>
+
+            </div>
+
           </div>
         )}
 
@@ -671,34 +805,109 @@ export default function DashboardPage() {
                     <p className="text-sm text-emperor-cream/30">No leads yet. They&apos;ll appear here in real-time.</p>
                   </div>
                 )}
-                {leads.map((lead) => (
-                  <div key={lead.lead_id} className="px-6 py-4 hover:bg-emperor-cream/[0.02] transition-colors">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-emperor-gold/50">{lead.lead_id}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-medium ${
-                          lead.status === 'booked'
-                            ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/20'
-                            : lead.status === 'completed'
-                            ? 'bg-accent-emerald/10 text-accent-emerald border border-accent-emerald/20'
-                            : 'bg-emperor-cream/5 text-emperor-cream/40 border border-emperor-cream/10'
-                        }`}>
-                          {(lead.status || 'pending').toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <span className="text-emperor-cream/80 font-semibold">{lead.device || 'Unknown Device'}</span>
-                        <span className="text-emperor-cream/25"></span>
-                        <span className="text-emperor-cream/50 capitalize">{(lead.repair_type || 'other').replace('_', ' ')}</span>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-emperor-cream/30 font-mono">
-                        <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{lead.phone}</span>
-                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{lead.appointment_date}</span>
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{lead.appointment_time}</span>
+                {leads.map((lead) => {
+                  const lt = lead.lead_type ?? 'appointment'
+                  const typeConfig = {
+                    appointment: {
+                      icon: Wrench,
+                      label: 'Appointment',
+                      accent: 'text-accent-blue',
+                      badge: 'bg-accent-blue/10 text-accent-blue border-accent-blue/20',
+                      dot: 'bg-accent-blue',
+                    },
+                    on_site: {
+                      icon: MapPin,
+                      label: 'On-Site',
+                      accent: 'text-accent-emerald',
+                      badge: 'bg-accent-emerald/10 text-accent-emerald border-accent-emerald/20',
+                      dot: 'bg-accent-emerald',
+                    },
+                    callback: {
+                      icon: PhoneCall,
+                      label: 'Callback',
+                      accent: 'text-emperor-gold',
+                      badge: 'bg-emperor-gold/10 text-emperor-gold border-emperor-gold/20',
+                      dot: 'bg-emperor-gold',
+                    },
+                  }[lt]
+
+                  const TypeIcon = typeConfig.icon
+                  const canCall = isMobile && lead.phone && lead.phone !== 'unknown'
+                  const handleLeadClick = () => {
+                    if (canCall) window.location.href = `tel:${lead.phone}`
+                  }
+
+                  return (
+                    <div
+                      key={lead.lead_id}
+                      onClick={handleLeadClick}
+                      className={`px-6 py-4 transition-colors ${
+                        canCall
+                          ? 'cursor-pointer hover:bg-emperor-gold/5 active:bg-emperor-gold/10'
+                          : 'hover:bg-emperor-cream/[0.02]'
+                      }`}
+                      role={canCall ? 'button' : undefined}
+                      tabIndex={canCall ? 0 : undefined}
+                      onKeyDown={canCall ? (e) => e.key === 'Enter' && handleLeadClick() : undefined}
+                    >
+                      <div className="flex items-start gap-3">
+
+                        {/* Type icon pill */}
+                        <div className={`mt-0.5 p-2 rounded-xl border ${typeConfig.badge} shrink-0`}>
+                          <TypeIcon className="w-3.5 h-3.5" />
+                        </div>
+
+                        <div className="flex-1 min-w-0 space-y-1">
+                          {/* Top row: type tag + status */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-[10px] font-mono font-semibold ${typeConfig.accent}`}>{typeConfig.label.toUpperCase()}</span>
+                            <span className="text-emperor-cream/15 text-xs">·</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border ${
+                              lead.status === 'booked'
+                                ? 'bg-accent-blue/8 text-accent-blue/80 border-accent-blue/15'
+                                : lead.status === 'completed'
+                                ? 'bg-accent-emerald/8 text-accent-emerald/80 border-accent-emerald/15'
+                                : 'bg-emperor-cream/5 text-emperor-cream/40 border-emperor-cream/10'
+                            }`}>
+                              {(lead.status || 'pending').toUpperCase()}
+                            </span>
+                            <span className="ml-auto text-[10px] text-emperor-cream/20 font-mono shrink-0">
+                              {lead.lead_id}
+                            </span>
+                          </div>
+
+                          {/* Main info row */}
+                          {lt === 'callback' ? (
+                            <div className="text-sm">
+                              <span className="text-emperor-cream/80 font-semibold">{lead.notes || lead.repair_type || 'Callback'}</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="text-emperor-cream/80 font-semibold truncate">{lead.device || 'Unknown Device'}</span>
+                              <span className="text-emperor-cream/20">—</span>
+                              <span className="text-emperor-cream/50 capitalize">{(lead.repair_type || 'other').replace(/_/g, ' ')}</span>
+                            </div>
+                          )}
+
+                          {/* Meta row */}
+                          <div className="flex items-center gap-4 text-xs text-emperor-cream/30 font-mono">
+                            {lead.phone && lead.phone !== 'unknown' && (
+                              <span className={`flex items-center gap-1 ${
+                                canCall ? 'text-emperor-gold/80 font-semibold' : ''
+                              }`}>
+                                <Phone className={`w-3 h-3 ${canCall ? 'animate-pulse' : ''}`} />
+                                {lead.phone}
+                                {canCall && <span className="text-[9px] ml-0.5">(tap to call)</span>}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{lead.appointment_date}</span>
+                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{lead.appointment_time}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>

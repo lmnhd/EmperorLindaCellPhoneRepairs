@@ -65,6 +65,36 @@ This document now covers **FOUR independent channels** (previously three). The n
 - **Browser voice**: Modern websites, mobile-first apps, cost-sensitive projects
 - **Phone voice**: Customer service lines, accessibility requirements, legacy phone users
 
+### Agent Control Dashboard: 3-Layer Simplification & Data Reset Controls
+
+**Latest improvements to the decomposed prompt architecture** (Section 13):
+
+**3-Layer Override System (Consolidated from 6 layers):**
+- **Layer 1**: Shared Foundation — Tone + Response Length + Escalation Threshold (read-only in dashboard, auto-built from state)
+- **Layer 2**: Channel Instructions — Merged field combining addendum + rules (one textarea per channel, simplified UI)
+- **Layer 3**: Full Override — Emergency escape hatch (now hidden behind `showAdvanced` toggle)
+
+**New UI Patterns:**
+- **Channel Instructions** — Single consolidated textarea per channel (replaces separate Addendum + Rules fields)
+- **showAdvanced Toggle** — Hides Full Override by default, revealed with "▽ show / △ hide" button (reduces cognitive load)
+- **Assembled Prompt Preview** — Now spans full component width (outside 2-column grid) for better visibility
+- **Sticky Save Bar** — Only visible when unsaved changes exist; shows count of dirty fields
+- **Behavior Rules** — Each rule is reorderable with ↑/↓ buttons (optimistic updates, batch save)
+
+**Data Reset Controls (New):**
+- **🗑️ Clear Chat History** — Hard reset all chat logs via `DELETE /api/chat-logs` (2-step confirmation)
+- **🗑️ Clear All Leads** — Hard reset all leads via `DELETE /api/leads` (2-step confirmation)
+- Both added to Danger Zone section for enterprise-grade conversation hygiene
+- Backend: New `deleteAllChatLogs()` and `deleteAllLeads()` DynamoDB functions
+
+**Benefits of consolidation:**
+- **Simpler mental model** — Three layers instead of six competing override mechanisms
+- **Better UX** — Fewer config keys, less dashboard clutter, quicker decisions
+- **Reduced bugs** — Clearer precedence rules, less room for conflicting settings
+- **Easier reuse** — 3-layer pattern works for any AI agent system
+
+**See Section 13.2-13.7 for complete implementation details and code examples.**
+
 ---
 
 ## 1. System Architecture
@@ -1966,294 +1996,505 @@ A monolithic system prompt is a liability:
 The solution is **prompt decomposition**: break every system prompt into named, typed fragments
 that are stored in a key-value database, edited through a UI, and assembled at request time.
 
-### 13.2 Prompt Fragment Taxonomy
+### 13.2 Three-Layer Prompt Architecture (Simplified)
 
-Every AI agent's final prompt is assembled from these fragment categories. Not every project
-needs all of them, but the **pattern** must be followed for each agent in the system.
+After extensive PoC work, the optimal architecture reduces complexity to **exactly three layers**:
 
-| Fragment Type | Behavior | Dashboard Control | Example |
-|:---|:---|:---|:---|
-| **Base Prompt** | Hardcoded default with full override | Read-only viewer + expert override textarea | The core identity, rules, and capabilities |
-| **Tone Directive** | Enum selector → injected as instruction | Card grid (casual / professional / friendly / firm) | `"Speak in a {tone} manner."` |
-| **Response Length** | Enum → sets verbosity instruction | Card grid (short / medium / detailed) | `"Keep responses to 1-2 sentences."` |
-| **Custom Greeting** | String → replaces default opening | Text input | First message the AI sends |
-| **Additional Rules** | String → **appended** to base rules | Monospace textarea | Business-specific constraints |
-| **Contextual Info** | String → **appended** as context | Monospace textarea | Promotions, hours changes, seasonal notes |
-| **Escalation Threshold** | Number → injected as rule | Number input | Dollar/severity amount that triggers handoff |
-| **Channel Addendum** | String → layered for channel-specific behavior | Textarea | Phone-specific, SMS-specific instructions |
-| **Channel-Specific Rules** | String → appended after addendum | Monospace textarea | Rules that only apply to one channel |
-| **Model Parameters** | Float/enum → passed to API call, not prompt | Slider / selector | Temperature, voice selection, max tokens |
-| **Full Override** | String → **replaces entire assembled prompt** | ⚠️ Expert textarea with warning | Emergency escape hatch |
+| Layer | Purpose | Storage | Scope | Precedence |
+|:---|:---|:---|:---|:---|
+| **Layer 1: Shared Foundation** | Auto-built base: persona + tone + response length + rules | `BrandonState` fields | All channels inherit | Manual (read-only to dashboard) |
+| **Layer 2: Channel Instructions** | Per-channel refinements: addendum + rules merged into one field | `agent_{channel}_channel_instructions` (DynamoDB) | Single channel only | Second (applied after Layer 1) |
+| **Layer 3: Full Override** | Emergency escape hatch: replaces entire assembled prompt | `agent_{channel}_full_override` (DynamoDB) | Single channel only | **Highest** (replaces Layers 1+2) |
 
-### 13.3 Assembly Rules (Critical)
+**Why three layers work:**
+- **Layer 1** enforces consistency across all agents (tone, length, core rules flow everywhere)
+- **Layer 2** allows channel-specific tweaks without duplicating the base
+- **Layer 3** provides an expert escape hatch for edge cases without removing safety layers 1-2
 
-The fragments are not just concatenated. They follow strict assembly rules:
+### 13.3 Database Pattern
 
-#### Rule 1: Append, Don't Replace (by default)
-Custom rules and contextual info are **appended** to the base prompt. This prevents the owner
-from accidentally deleting core instructions. Only the explicit "Full Override" replaces.
-
-#### Rule 2: Inheritance Between Agents
-When multiple agents share a brain (e.g., voice inherits from chat), changing shared fragments
-(tone, rules, contextual info) must flow to all inheriting agents automatically. Only a
-per-agent "Full Override" should break this chain — and the UI must **warn explicitly** when
-this happens.
-
-```
-Assembly order for an inheriting agent (e.g. voice inherits from chat):
-
-1. Primary agent's base prompt (chat custom override OR hardcoded default)
-2. Inheriting agent's channel addendum (voice addendum OR default)
-3. Primary agent's tone directive (if non-default)
-4. Primary agent's additional rules (if set)
-5. Primary agent's contextual info (if set)
-6. Inheriting agent's channel-specific rules (if set)
-7. Primary agent's escalation threshold
-
-If inheriting agent's full_override is set → skip ALL above, use only that.
-```
-
-#### Rule 3: Model Parameters Are Separate from Prompt
-Temperature, voice selection, max tokens — these are NOT injected into the prompt text. They're
-returned alongside the assembled prompt as separate fields and passed to the AI API call directly.
+Use these fields in your `BrandonState` or equivalent config table:
 
 ```typescript
-// API response shape for any config endpoint:
-{
-  system_prompt: string,       // The assembled text
-  temperature: number,         // Model parameter
-  voice?: string,              // Model parameter (voice agents)
-  max_tokens?: number,         // Model parameter
-  source: "assembled" | "full_override" | "fallback"
+interface ActiveAgentConfig {
+  // Layer 1: Shared Foundation (auto-built + read-only in dashboard)
+  agent_shared_tone: 'professional' | 'laidback' | 'hustler'          // → tone directive
+  agent_shared_response_length: 'short' | 'medium' | 'detailed'       // → length directive
+  agent_shared_escalation_threshold: string                            // e.g. "500" (dollar amt)
+  
+  // Layer 2: Channel Instructions (per-channel, consolidated)
+  agent_chat_channel_instructions: string                              // Web Chat refinements
+  agent_phone_channel_instructions: string                             // Phone Voice refinements
+  
+  // Layer 3: Full Override (per-channel, highest priority)
+  agent_chat_full_override: string                                     // Emergency replace (chat)
+  agent_phone_full_override: string                                    // Emergency replace (phone)
+  
+  // Model parameters (not in prompt, passed separately)
+  agent_chat_temperature: string                                       // e.g. "0.7"
+  agent_phone_temperature: string                                      // e.g. "0.8"
+  
+  // Dynamic knowledge
+  behavior_rules: string                                               // JSON array of rule strings
+  services_block: string                                               // Services + pricing text
 }
 ```
 
-#### Rule 4: Graceful Fallback
-If the database is unreachable, every route MUST fall back to hardcoded defaults. The system
-**never fails silently** — it degrades to safe, pre-tested defaults. The `source` field in
-the response tells the consumer what happened.
+**Key simplification from old pattern:**
+- ❌ Removed: `agent_shared_base_prompt_override`, `agent_shared_full_override`, `agent_*_channel_addendum`, `agent_*_channel_rules`
+- ✅ Added: `agent_*_channel_instructions` (merged addendum + rules into one field)
+- Result: Fewer config keys, clearer mental model, less UI clutter
 
-### 13.4 Database Pattern
-
-Use a key-value table with a **prefix convention** per agent:
-
-```
-Table: {Project}_Store_Config
-Partition key: config_key (string)
-
-Key naming: agent_{agentName}_{fragmentType}
-
-Examples:
-  agent_chat_tone             → "casual"
-  agent_chat_rules            → "- Never discuss competitors\n- Always mention free estimates"
-  agent_chat_system_prompt    → ""  (empty = use default)
-  agent_vision_conservatism   → "moderate"
-  agent_voice_voice           → "alloy"
-  agent_voice_temperature     → "0.8"
-```
-
-Each record also stores:
-- `value` (string) — the fragment content
-- `updated_at` (ISO timestamp) — when it was last changed
-- `updated_by` (string, optional) — who changed it
-
-The API route defines a `KNOWN_KEYS` constant with all valid keys and their defaults.
-PUT requests are validated against this list — unknown keys are silently dropped.
-GET requests merge DB values with defaults so every known key is always present in the response.
-
-### 13.5 API Route Pattern
-
-Three routes per system:
-
-#### GET /api/agent-config
-Returns all config entries merged with defaults. Every known key is always present.
+### 13.4 Assembly Function
 
 ```typescript
-const KNOWN_KEYS = {
-  agent_chat_system_prompt: "",
-  agent_chat_tone: "casual",
-  agent_chat_rules: "",
-  // ... all keys with defaults
+// From frontend/src/lib/agentConfig.ts
+
+export function assembleAgentChannelConfig(
+  state: BrandonState,
+  channel: 'chat' | 'phone'
+): { systemPrompt: string; temperature: number; source: PromptSource } {
+  
+  const config = getAgentConfigRecordFromState(state);
+  const channelFullOverride = channel === 'chat'
+    ? config.agent_chat_full_override.trim()
+    : config.agent_phone_full_override.trim();
+
+  // Layer 3: Full Override (highest priority, return immediately)
+  if (channelFullOverride.length > 0) {
+    return {
+      systemPrompt: channelFullOverride,
+      temperature: parseTemperature(channel === 'chat' ? config.agent_chat_temperature : config.agent_phone_temperature),
+      source: 'full_override', // Signal to consumer
+    };
+  }
+
+  // Layer 1: Build shared foundation
+  const persona = coercePersona(state.persona);
+  const basePrompt = buildCorePrompt(state, persona);           // Parameterized by persona
+  const defaultChannelAddendum = buildDefaultChannelAddendum(channel); // Hardcoded per channel
+  
+  const pieces: string[] = [basePrompt, defaultChannelAddendum];
+
+  // Inject tone directive (if non-default)
+  const toneDirective = getToneDirective(config.agent_shared_tone);
+  if (toneDirective) pieces.push(`\n${toneDirective}`);
+
+  // Inject response length directive
+  pieces.push(`\n${getLengthDirective(config.agent_shared_response_length, channel)}`);
+
+  // Layer 2: Apply channel-specific instructions
+  const channelInstructions = channel === 'chat'
+    ? config.agent_chat_channel_instructions.trim()
+    : config.agent_phone_channel_instructions.trim();
+
+  if (channelInstructions.length > 0) {
+    pieces.push(`\nCHANNEL INSTRUCTIONS:\n${channelInstructions}`);
+  }
+
+  // Always append escalation threshold
+  pieces.push(`\nESCALATION THRESHOLD: ${config.agent_shared_escalation_threshold} (flag for human review).`);
+
+  return {
+    systemPrompt: pieces.join('\n'),
+    temperature: parseTemperature(channel === 'chat' ? config.agent_chat_temperature : config.agent_phone_temperature),
+    source: 'assembled', // Signal that fragments were combined
+  };
+}
+```
+
+### 13.5 Dashboard UI Pattern (Updated)
+
+The dashboard is now organized into **sections with very specific patterns**:
+
+#### Section 1: Behavior Rules
+- **Numbered list** of editable rules (e.g., "1. Ask device model early")
+- **Up/Down arrow buttons** on hover to reorder
+- **Add rule** button with text input
+- **Reorder happens instantly** (optimistic); save to `/api/state` when changed
+- **Reset to defaults** button
+
+#### Section 2: Shared Settings (Layer 1 - Foundation)
+**Two-column layout on desktop, full-width on mobile:**
+
+**Left column:**
+- **Tone** — Card grid: Professional / Laid Back / Hustler (with descriptions)
+- **Response Length** — Card grid: Short / Medium / Detailed (with descriptions)
+- **Escalation Threshold** — Number input (`$XXX`)
+- All changes immediately dirty the save bar; no per-field saves
+- **synced ↔** badge next to Tone label — indicates this syncs to Personality Mode if enabled
+
+**Right column:**
+- **Channel-specific settings** (Web Chat tab or Phone tab):
+  - **{ChannelName} Temperature** — Slider with color gradient (0.0 = precise/blue → 2.0 = creative/red)
+  - **Channel Instructions** — Single textarea (merged addendum + rules)
+    - Placeholder example shows combined guidance style
+    - Helper text: "Combined addendum + rules for this channel"
+
+#### Section 3: Assembled Prompt Preview (Full Width)
+- **Collapsible section** spanning entire component width (not constrained to column)
+- **Header button** with "Assembled Prompt Preview — {ChannelName}" label + Eye icon
+- **ChevronRight icon rotates** when expanded
+- **Content area** shows monospace text (max-height: 16rem, scrollable)
+- **Footer** shows source (assembled/full_override/fallback) + character count
+- **Updates automatically** when config changes
+- **Never shows until explicitly expanded** (improves perceived performance)
+
+#### Section 4: Danger Zone (Red-bordered section at bottom)
+- **Warning icon + explanation text** at top explaining Full Override behavior
+- **Subheader**: "Data Reset Controls" with uppercase styling
+- **{ChannelName} Full Override textarea**:
+  - Only visible when `showAdvanced` toggle is ON
+  - Toggle button next to label: "▽ show" / "△ hide" (unicode triangles)
+  - Text is monospace, 32 lines high
+  - Placeholder: "Leave empty to use assembled {channel} prompt..."
+- **Two hard-reset buttons** below Full Override:
+  1. **🗑️ Clear Chat History** — Deletes all chat logs via DELETE `/api/chat-logs`
+     - Two-step confirmation: first click → "Are you sure?" dialog
+     - Second click (or cancel) → confirm or abort
+     - Shows loading state, success feedback
+  2. **🗑️ Clear All Leads** — Deletes all leads via DELETE `/api/leads`
+     - Same two-step pattern as chat history
+     - Confirmation explains this removes all bookings from database
+
+#### Section 5: Sticky Save Bar (Bottom of viewport)
+- **Only appears when unsaved changes exist**
+- **Fixed position**, z-index 50, centered bottom padding
+- **Animated pulse dot** on left side
+- **Count of dirty fields**: "X unsaved change(s)"
+- **Two action buttons**:
+  - Discard (outline style) — resets local state to baseline
+  - Save All (filled style) — PUT to `/api/agent-config`, updates baseline, clears dirty count
+- **Loading state** while saving
+- **Success state** — "Saved!" badge appears for 2.5 seconds
+
+### 13.6 showAdvanced Toggle Pattern
+
+The `showAdvanced` state controls visibility of **advanced/dangerous controls** that most users shouldn't touch:
+
+```typescript
+const [showAdvanced, setShowAdvanced] = useState(false);
+
+// In Danger Zone, Full Override textareas are hidden until toggle is ON
+{showAdvanced && (
+  <textarea value={values[channelOver]} ... />
+)}
+
+// Toggle button in Danger Zone header
+<button onClick={() => setShowAdvanced(!showAdvanced)}>
+  {showAdvanced ? '△ hide' : '▽ show'}
+</button>
+```
+
+**Purpose:**
+- Reduces cognitive load for typical users (80% of edits are tone/rules/channel instructions)
+- Prevents accidental full override modifications
+- Expert users who need it can opt-in with explicit toggle
+
+### 13.7 Data Reset Pattern
+
+New API endpoints for hard resets of conversation/lead data:
+
+#### DELETE /api/chat-logs
+```typescript
+// Backend implementation
+export async function DELETE(req: NextRequest) {
+  try {
+    const deletedCount = await deleteAllChatLogs();  // Scans + deletes all CHATLOG-* entries
+    return NextResponse.json({
+      status: 'success',
+      message: `Deleted ${deletedCount} chat log entries`,
+      deleted: deletedCount,
+    });
+  } catch (error) {
+    console.error('DELETE /api/chat-logs error:', error);
+    return NextResponse.json(
+      { status: 'error', message: 'Failed to delete chat logs' },
+      { status: 500 }
+    );
+  }
+}
+
+// Frontend hook in AgentPromptControlPanel.tsx
+const resetChatHistory = async () => {
+  if (!showResetChatConfirm) {
+    setShowResetChatConfirm(true); // Show confirmation dialog
+    return;
+  }
+  setResetChatLoading(true);
+  try {
+    const res = await fetch('/api/chat-logs', { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to reset');
+    alert('Chat history cleared.');
+    setShowResetChatConfirm(false);
+  } catch (err) {
+    alert('Error clearing chat history.');
+  } finally {
+    setResetChatLoading(false);
+  }
 };
-
-// On GET: scan DB for prefix "agent_", merge with KNOWN_KEYS
-// On PUT: validate keys against KNOWN_KEYS, write each to DB with timestamp
 ```
 
-#### PUT /api/agent-config
-Batch-updates config entries. Body: `{ updates: { [key]: value } }`. Only known keys accepted.
-
-#### GET /api/agent-config/{channel}
-Assembles the final prompt for a specific channel using the inheritance + assembly rules above.
-Returns `{ system_prompt, temperature, voice?, source }`.
-
-**This is the critical route** — it's where the decomposed fragments become one prompt.
-
-### 13.6 Prompt Assembly Implementation
-
+#### DELETE /api/leads
 ```typescript
-// Pseudocode — adapt per project
-
-async function assemblePrompt(primaryPrefix: string, channelPrefix?: string) {
-  const primary = await getConfigBatch(primaryPrefix);      // e.g. "agent_chat_"
-  const channel = channelPrefix 
-    ? await getConfigBatch(channelPrefix)                    // e.g. "agent_voice_"
-    : {};
-
-  // Full override escape hatch
-  const fullOverride = channel[`${channelPrefix}system_prompt`]?.trim();
-  if (fullOverride) return { prompt: fullOverride, source: "full_override" };
-
-  // Assemble from fragments
-  const parts: string[] = [];
-
-  // 1. Base prompt
-  parts.push(primary[`${primaryPrefix}system_prompt`]?.trim() || HARDCODED_DEFAULT);
-
-  // 2. Channel addendum (if inheriting agent)
-  if (channelPrefix) {
-    parts.push(channel[`${channelPrefix}addendum`]?.trim() || DEFAULT_ADDENDUM);
+// Same pattern as /api/chat-logs, but deletes all LEAD-/CALLBACK-/ONSITE-* entries
+export async function DELETE(req: NextRequest) {
+  try {
+    const deletedCount = await deleteAllLeads();
+    return NextResponse.json({
+      status: 'success',
+      message: `Deleted ${deletedCount} lead entries`,
+      deleted: deletedCount,
+    });
+  } catch (error) {
+    return NextResponse.json({ status: 'error', ... }, { status: 500 });
   }
-
-  // 3. Tone directive
-  const tone = primary[`${primaryPrefix}tone`];
-  if (tone && tone !== DEFAULT_TONE) {
-    parts.push(`\nTONE: Speak in a ${tone} manner.`);
-  }
-
-  // 4. Additional rules (APPEND, don't replace)
-  const rules = primary[`${primaryPrefix}rules`]?.trim();
-  if (rules) parts.push(`\nADDITIONAL RULES:\n${rules}`);
-
-  // 5. Contextual info (APPEND)
-  const info = primary[`${primaryPrefix}special_info`]?.trim();
-  if (info) parts.push(`\nCURRENT INFO:\n${info}`);
-
-  // 6. Channel-specific rules (APPEND)
-  if (channelPrefix) {
-    const chRules = channel[`${channelPrefix}rules`]?.trim();
-    if (chRules) parts.push(`\nCHANNEL RULES:\n${chRules}`);
-  }
-
-  // 7. Escalation threshold
-  const threshold = primary[`${primaryPrefix}escalation_threshold`] || "500";
-  parts.push(`\nESCALATION: Flag items/issues over $${threshold} for human review.`);
-
-  return { prompt: parts.join("\n"), source: "assembled" };
 }
 ```
 
-### 13.7 Dashboard UI Pattern
+**Backend Implementation:**
+```typescript
+export async function deleteAllChatLogs(): Promise<number> {
+  const logs = await getAllChatLogs();  // Scan for CHATLOG-* prefix
+  for (const log of logs) {
+    await docClient.send(new DeleteCommand({
+      TableName: REPAIRS_TABLE,
+      Key: { lead_id: log.lead_id, timestamp: log.timestamp },
+    }));
+  }
+  return logs.length;
+}
 
-The dashboard component follows this structure for **each agent**:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  [Tab: Agent 1]  [Tab: Agent 2]  [Tab: Agent 3]  ...   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  ┌ Info Banner ────────────────────────────────────┐    │
-│  │ Explains what this agent does and how config    │    │
-│  │ affects its behavior.                           │    │
-│  └─────────────────────────────────────────────────┘    │
-│                                                         │
-│  ┌ Default Prompt Viewer (collapsible, read-only) ─┐    │
-│  │ Shows the hardcoded default prompt so the owner │    │
-│  │ understands the baseline. Badge: "Overridden"   │    │
-│  │ if custom override is set.                      │    │
-│  └─────────────────────────────────────────────────┘    │
-│                                                         │
-│  ┌ Card: Tone & Behavior ──────────────────────────┐    │
-│  │  Tone:    [Casual] [Professional] [Friendly]    │    │
-│  │  Length:  [Short]  [Medium]  [Detailed]          │    │
-│  │  Greeting: [________________________]            │    │
-│  └─────────────────────────────────────────────────┘    │
-│                                                         │
-│  ┌ Card: Rules & Restrictions ─────────────────────┐    │
-│  │  Additional rules: [monospace textarea]          │    │
-│  │  Escalation threshold: [$________]               │    │
-│  └─────────────────────────────────────────────────┘    │
-│                                                         │
-│  ┌ Card: Contextual Info / Announcements ──────────┐    │
-│  │  [monospace textarea — promotions, hours, etc]   │    │
-│  └─────────────────────────────────────────────────┘    │
-│                                                         │
-│  ┌ Card: ⚠️ Full Prompt Override (red border) ─────┐    │
-│  │  WARNING: This replaces the entire base prompt.  │    │
-│  │  [monospace textarea — expert only]              │    │
-│  └─────────────────────────────────────────────────┘    │
-│                                                         │
-├─────────────────────────────────────────────────────────┤
-│  [Sticky Save Bar — appears when unsaved changes]       │
-│  Unsaved changes (3 fields)  [Discard] [Save All]       │
-└─────────────────────────────────────────────────────────┘
+export async function deleteAllLeads(): Promise<number> {
+  const leads = await getAllLeads();  // Scan for LEAD-/CALLBACK-/ONSITE-* prefixes
+  for (const lead of leads) {
+    await docClient.send(new DeleteCommand({
+      TableName: REPAIRS_TABLE,
+      Key: { lead_id: lead.lead_id, timestamp: lead.timestamp },
+    }));
+  }
+  return leads.length;
+}
 ```
 
-#### Required UI Behaviors
-- **Sticky save bar** — only visible when edits exist; shows count of changed fields
-- **Discard / Save All** — discard resets local state; save does batch PUT
-- **Success/error feedback** — animated toast with timestamp on save
-- **Character count** per textarea
-- **"Overridden" badge** on the default prompt viewer when a custom override is set
-- **Enum selectors as card grids** — not dropdowns; each option shows label + short description
-- **Model parameter controls** — sliders for temperature, card grids for voice/model selection
-- **Channel inheritance explanation** — for agents that inherit, show the assembly order clearly
+### 13.8 API Routes Summary
 
-### 13.8 How Channels Consume Config at Runtime
+| Route | Method | Purpose | Response |
+|:---|:---|:---|:---|
+| `/api/agent-config` | GET | Fetch all config keys (merged with defaults) | `{ values: Record<key, string> }` |
+| `/api/agent-config` | PUT | Batch update config entries | `{ updated: string[], errors: string[] }` |
+| `/api/agent-config/{channel}` | GET | Assemble final prompt for channel | `{ system_prompt, temperature, source }` |
+| `/api/state` | GET | Fetch Brandon state + config | `{ state: BrandonState }` |
+| `/api/state` | POST | Update Brandon state fields | `{ state: BrandonState }` |
+| `/api/chat-logs` | GET | Fetch all chat logs | `{ logs: ChatLogEntry[], count }` |
+| `/api/chat-logs` | DELETE | Hard reset all chat logs | `{ deleted: number }` |
+| `/api/leads` | GET | Fetch all leads | `{ leads: RepairLead[], count }` |
+| `/api/leads` | DELETE | Hard reset all leads | `{ deleted: number }` |
+
+### 13.9 How Channels Consume Config at Runtime
 
 | Channel | When Config is Read | Latency of Changes |
 |:---|:---|:---|
-| Web Chat API | Every message (inline DB read) | **Instant** |
-| Vision/Appraisal API | Every submission (inline DB read) | **Instant** |
+| Web Chat API | Every message (inline DB read via `/api/agent-config/chat`) | **Instant** |
+| Phone Voice Relay | HTTP fetch to `/api/agent-config/phone` with 5min TTL cache | **Up to 5 minutes** (then must redeploy or manually clear cache) |
 | SMS Webhook | Every inbound message (inline DB read) | **Instant** |
-| Voice Relay Server | HTTP fetch to `/api/agent-config/{channel}` with TTL cache | **Up to cache TTL** (recommend 5 min) |
+| Browser Voice | Every session (ephemeral token includes system prompt) | **Instant** (new session required to pick up changes) |
 
-Voice servers are typically separate processes — they can't read the DB directly. Instead,
-they fetch the assembled prompt from the frontend API with a time-based cache. This means
-voice config changes are slightly delayed but require **zero redeployment**.
-
-### 13.9 Implementation Checklist
+### 13.10 Implementation Checklist
 
 For every project built with this skill:
 
-- [ ] **Define all agents** the system has (chat, voice, vision, SMS, etc.)
-- [ ] **Identify shared vs. channel-specific fragments** — which agents inherit from which
-- [ ] **Create the KNOWN_KEYS constant** with every config key and its default value
-- [ ] **Database table** with `config_key` as partition key (DynamoDB, Postgres, etc.)
-- [ ] **GET /api/agent-config** — returns all keys merged with defaults
-- [ ] **PUT /api/agent-config** — batch update with known-key validation
-- [ ] **GET /api/agent-config/{channel}** — per-channel prompt assembly endpoint
-- [ ] **Prompt assembly function** — implements the fragment ordering + inheritance rules
-- [ ] **Every API route reads config dynamically** — no hardcoded prompts in route handlers
-- [ ] **Dashboard component** — tabbed UI with one tab per agent
-- [ ] **Default prompt viewers** — collapsible read-only view with "Overridden" badge
-- [ ] **Full Override with warning** — red-bordered expert card that explains the consequences
-- [ ] **Auth gate** — dashboard behind authentication (owner/admin role only)
-- [ ] **Fallback to defaults** — if DB read fails, use hardcoded defaults (never crash)
+- [ ] **BrandonState interface** — Define all config fields (tone, threshold, channel instructions, etc.)
+- [ ] **KNOWN_AGENT_CONFIG_DEFAULTS constant** — Every possible key with defaults
+- [ ] **assembleAgentChannelConfig()** function — Implements 3-layer assembly logic
+- [ ] **GET /api/agent-config** — Returns all merged keys
+- [ ] **PUT /api/agent-config** — Batch update with validation
+- [ ] **GET /api/agent-config/{channel}** — Calls assembly function
+- [ ] **GET/DELETE /api/chat-logs** — Fetch and hard-reset chat data
+- [ ] **GET/DELETE /api/leads** — Fetch and hard-reset lead data
+- [ ] **AgentPromptControlPanel component**:
+  - [ ] Behavior Rules section with reorder buttons
+  - [ ] Shared Settings: tone/length/threshold cards
+  - [ ] Channel tabs with temperature slider + instructions textarea
+  - [ ] Assembled Prompt Preview (full-width, collapsible)
+  - [ ] Danger Zone with showAdvanced toggle
+  - [ ] Data reset buttons (2-step confirmation)
+  - [ ] Sticky save bar (conditional visibility)
+- [ ] **Auth gate** — Dashboard behind admin/owner authentication
+- [ ] **Every channel reads config dynamically** — No hardcoded prompts after init
 
-### 13.10 Design Principles
+### 13.11 Design Principles (Updated)
 
-1. **Append, don't replace** — Custom rules and contextual info are layered ON TOP of defaults.
-   Only the explicit Full Override replaces. This prevents owners from accidentally gutting
-   critical base instructions.
+1. **Three layers, not six** — Shared Foundation + Channel Instructions + Full Override. This prevents
+   configuration explosion and keeps the UI scannable.
 
-2. **Inheritance flows down** — Secondary agents inherit primary agent config automatically.
-   Changing tone on the primary agent changes it everywhere. Full Override on a secondary
-   agent intentionally breaks this chain — and the UI must warn about it.
+2. **Channel Instructions are additive** — They're added AFTER shared foundation. They never delete
+   or replace critical base rules, only refine them.
 
-3. **Fragments are typed** — Enums get card grids, strings get textareas, numbers get inputs
-   or sliders. Never give a freeform textarea for something that should be a constrained choice.
+3. **Full Override is hidden by default** — Use `showAdvanced` toggle to prevent accidental expert-mode
+   changes. Most users should never need it.
 
-4. **Known-key validation** — The API only accepts predefined config keys. This prevents
-   injection of arbitrary data and keeps frontend/backend in sync. Unknown keys are silently
-   dropped, not errored — forward compatibility.
+4. **Data reset is destructive but straightforward** — Two-step confirmation prevents accidents; DELETE
+   endpoints provide hard reset for conversation hygiene.
 
-5. **Zero-config works** — The system must function perfectly with an empty database. Every
-   key has a hardcoded default. The dashboard is for refinement, not bootstrapping.
+5. **Assembled preview spans full width** — Gives owner visibility into the complete prompt being sent
+   to AI. Collapsible to reduce visual clutter.
 
-6. **Source transparency** — Every prompt assembly response includes a `source` field
-   (`assembled`, `full_override`, `fallback`) so consumers know what happened. This is
-   invaluable for debugging.
+6. **Sticky save bar is context-sensitive** — Only appears when edits exist, preventing confusion about
+   whether changes are applied. Count of dirty fields helps users understand scope of changes.
+
+7. **Zero-config works** — Every field has a hardcoded default. The dashboard refines behavior, never
+   bootstraps it from scratch.
+┌─────────────────────────────────────────────────────────┐
+│  Section: Behavior Rules (numbered, reorderable)        │
+│  • 1. Identify device model early [↑ ↓]                │
+│  • 2. Ask service preference [↑ ↓]                      │
+│  ...                                                    │
+│  [Add rule input + button]                              │
+│  [Reset to defaults] [Save Rules]                       │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  Header: Prompt Control Center    [Chat] [Phone]        │
+├─────────────────────────────────────────────────────────┤
+│                     TWO-COLUMN GRID                       │
+│  ┌─────────────────────┐  ┌──────────────────────────┐  │
+│  │  LEFT: SHARED       │  │  RIGHT: CHANNEL-SPECIFIC │  │
+│  │  ┌─────────────┐    │  │  ┌──────────────────┐    │  │
+│  │  │ Tone        │    │  │  │ Temperature      │    │  │
+│  │  │ [Pro][Laid] │    │  │  │ Slider ▅▅▆▆▆▆▅▅▅ 0.7 │  │
+│  │  └─────────────┘    │  │  └──────────────────┘    │  │
+│  │  ┌─────────────┐    │  │  ┌──────────────────┐    │  │
+│  │  │ Response    │    │  │  │ Channel          │    │  │
+│  │  │ [Sho][Med]  │    │  │  │ Instructions:    │    │  │
+│  │  └─────────────┘    │  │  │ [textarea]       │    │  │
+│  │  ┌─────────────┐    │  │  └──────────────────┘    │  │
+│  │  │ Escalation  │    │  │                           │  │
+│  │  │ $[_____]    │    │  │                           │  │
+│  │  └─────────────┘    │  │                           │  │
+│  └─────────────────────┘  └──────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  Assembled Prompt Preview  (FULL WIDTH, collapsible)    │
+│  ▽ Assembled Prompt Preview — Web Chat          [↘]    │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ System prompt text (monospace, scrollable)      │   │
+│  │ ...                                             │   │
+│  │ Source: assembled  | Length: 2,847 chars       │   │
+│  └─────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+
+┌───── RED BORDER──── DANGER ZONE ─────────────────┐
+│  ⚠️ Full overrides completely replace the prompt.│
+│     All rules above are ignored.                 │
+│                                                   │
+│  Data Reset Controls                              │
+│  ▽ show  Full Override                           │
+│  [textarea hidden until "show" clicked]          │
+│                                                   │
+│  🗑️ Clear Chat History                           │
+│     [Click 1: Ask "Are you sure?"]              │
+│     [Click 2: Confirm → DELETE /api/chat-logs]  │
+│                                                   │
+│  🗑️ Clear All Leads                              │
+│     [Click 1: Ask "Are you sure?"]              │
+│     [Click 2: Confirm → DELETE /api/leads]      │
+└─────────────────────────────────────────────────┘
+
+[Sticky save bar at bottom when unsaved changes exist]
+```
+
+#### Key UI Behaviors (Implementation Details)
+
+**Reordering Behavior Rules:**
+```tsx
+// Arrow buttons appear on hover and update array immediately
+const moveUp = (idx) => {
+  if (idx > 0) {
+    const updated = [...rules];
+    [updated[idx], updated[idx-1]] = [updated[idx-1], updated[idx]];
+    setRules(updated); // Optimistic update
+  }
+};
+```
+
+**Temperature Slider:**
+```tsx
+// Color changes with value: blue (precise) → green (balanced) → orange/red (creative)
+const color = temp <= 0.5 ? 'text-blue' : temp <= 1.0 ? 'text-green' : 'text-orange';
+<input type="range" min="0" max="2" step="0.1" value={temp} />
+```
+
+**Sticky Save Bar (Conditional Visibility):**
+```tsx
+{dirtyCount > 0 && (
+  <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+    <div className="flex items-center gap-3 rounded-2xl border bg-black/95 backdrop-blur px-5 py-3">
+      <div className="w-2 h-2 rounded-full bg-gold animate-pulse" />
+      <span>{dirtyCount} unsaved change{dirtyCount !== 1 ? 's' : ''}</span>
+      <button onClick={discardChanges}>Discard</button>
+      <button onClick={saveChanges} disabled={saving}>Save All</button>
+    </div>
+  </div>
+)}
+```
+
+**Two-Step Confirmation (Data Reset):**
+```tsx
+const resetLeads = async () => {
+  if (!showResetLeadsConfirm) {
+    setShowResetLeadsConfirm(true); // First click: show confirmation
+    return;
+  }
+  // Second click: execute
+  setResetLeadsLoading(true);
+  try {
+    const res = await fetch('/api/leads', { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed');
+    alert('All leads cleared successfully.');
+    setShowResetLeadsConfirm(false);
+  } finally {
+    setResetLeadsLoading(false);
+  }
+};
+```
+
+**showAdvanced Toggle:**
+```tsx
+<button
+  onClick={() => setShowAdvanced(!showAdvanced)}
+  className="text-[10px] font-mono text-cream/40 hover:text-gold/60"
+>
+  {showAdvanced ? '△ hide' : '▽ show'}
+</button>
+
+// Content only renders when showAdvanced is true
+{showAdvanced && (
+  <textarea value={values[channelOver]} ... />
+)}
+```
+
+#### Channel Instructions Pattern (Consolidated Field)
+
+Old pattern (overcomplicated):
+```
+Addendum:     [textarea 1]   — separate control
+Rules:        [textarea 2]   — separate control
+→ Two concepts, separate UIs, easy to forget to fill both
+```
+
+New pattern (simplified):
+```
+Channel
+Instructions: [textarea - combined]  — one control
+→ One concept, one UI, owner naturally fills both needs
+```
+
+The placeholder text guides users toward combining both styles:
+```
+"e.g. End responses with a booking CTA. Never reveal discounts. Keep under 3 sentences..."
+```
 
 ---
 

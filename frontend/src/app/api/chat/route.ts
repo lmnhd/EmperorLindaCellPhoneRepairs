@@ -85,10 +85,15 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'book_slot',
-      description: 'Book a repair appointment slot for a customer.',
+      description: 'Book a repair appointment, on-site visit, or any scheduled event for a customer.',
       parameters: {
         type: 'object',
         properties: {
+          lead_type: {
+            type: 'string',
+            enum: ['appointment', 'on_site'],
+            description: "'appointment' = walk-in to the shop. 'on_site' = Brandon travels to the customer.",
+          },
           date: { type: 'string', description: 'Appointment date YYYY-MM-DD' },
           time: { type: 'string', description: "Appointment time e.g. '2:00 PM'" },
           phone: { type: 'string', description: 'Customer phone number' },
@@ -98,7 +103,25 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           },
           device: { type: 'string', description: "Device model e.g. 'iPhone 15 Pro'" },
         },
-        required: ['date', 'time', 'repair_type'],
+        required: ['lead_type', 'date', 'time', 'repair_type'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'schedule_callback',
+      description: 'Schedule a callback from Brandon for a customer who cannot come in now or needs a follow-up call.',
+      parameters: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', description: 'Callback date YYYY-MM-DD' },
+          time: { type: 'string', description: "Preferred callback time e.g. '3:00 PM'" },
+          phone: { type: 'string', description: 'Customer phone number' },
+          reason: { type: 'string', description: 'Brief reason for callback e.g. "quote for screen repair" or "discuss water damage options"' },
+        },
+        required: ['date', 'time', 'reason'],
         additionalProperties: false,
       },
     },
@@ -185,21 +208,42 @@ async function executeFunction(
     }
 
     case 'book_slot': {
+      const leadType = (args.lead_type as 'appointment' | 'on_site') || 'appointment'
       const date = args.date as string
       const time = args.time as string
-      const phone = (args.phone as string) || 'voice-demo'
+      const phone = (args.phone as string) || 'unknown'
       const repairType = args.repair_type as string
       const device = (args.device as string) || 'Unknown Device'
 
-      const leadId = await createLead(phone, repairType, device, date, time)
+      const leadId = await createLead(phone, repairType, device, date, time, leadType)
+      const typeLabel = leadType === 'on_site' ? 'On-site visit' : 'Appointment'
       return {
         success: true,
         lead_id: leadId,
+        lead_type: leadType,
         date,
         time,
         device,
         repair_type: repairType,
-        message: `Booking confirmed! Lead ID: ${leadId}. Appointment: ${date} at ${time}`,
+        message: `${typeLabel} confirmed! Ref: ${leadId}. ${date} at ${time}`,
+      }
+    }
+
+    case 'schedule_callback': {
+      const date = args.date as string
+      const time = args.time as string
+      const phone = (args.phone as string) || 'unknown'
+      const reason = (args.reason as string) || 'General inquiry'
+
+      const leadId = await createLead(phone, reason, 'N/A', date, time, 'callback', reason)
+      return {
+        success: true,
+        lead_id: leadId,
+        lead_type: 'callback',
+        date,
+        time,
+        reason,
+        message: `Callback scheduled for ${date} at ${time}. Brandon will call${phone !== 'unknown' ? ` ${phone}` : ''} about: ${reason}. Ref: ${leadId}`,
       }
     }
 

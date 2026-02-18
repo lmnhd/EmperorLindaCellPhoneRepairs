@@ -18,6 +18,8 @@ interface StateUpdateBody {
   ai_answers_calls?: boolean
   ai_answers_sms?: boolean
   auto_upsell?: boolean
+  services_block?: string
+  behavior_rules?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +63,8 @@ export async function POST(req: NextRequest) {
       ai_answers_calls: body.ai_answers_calls,
       ai_answers_sms: body.ai_answers_sms,
       auto_upsell: body.auto_upsell,
+      services_block: body.services_block,
+      behavior_rules: body.behavior_rules,
     })
 
     return NextResponse.json({

@@ -71,17 +71,10 @@ export function buildCorePrompt(state: BrandonState, persona: PersonaKey): strin
     ? `\n\n--- OWNER BULLETIN (IMPORTANT — apply this context naturally) ---\n${specialInfo}\n--- END BULLETIN ---\nWeave the above info into conversations when relevant. Don't read it verbatim — reference deals, events, closures, or updates naturally when the topic fits. If a bulletin mentions a closure or schedule change, proactively inform the customer.`
     : ''
 
-  return `You are ${assistantName} (Lifestyle-Integrated Network Dispatch Assistant), the AI receptionist for EmperorLinda Cell Phone Repairs — a premium mobile repair shop run by Brandon in Jacksonville, FL.
-
-${personalityBlock}
-${greetingBlock}
-
-BRANDON'S CURRENT STATUS: ${getStatusLabel(state.status)}
-BRANDON'S LOCATION: ${state.location}
-${state.notes ? `BRANDON'S NOTE: ${state.notes}` : ''}
-${specialInfoBlock}
-
-SERVICES & PRICING (approximate — always say "starting at"):
+  // ---------------------------------------------------------------------------
+  // Services & Pricing — use saved value or fall back to defaults
+  // ---------------------------------------------------------------------------
+  const DEFAULT_SERVICES_BLOCK = `SERVICES & PRICING (approximate — always say "starting at"):
 - Screen replacement: starting at $79 (iPhone), $89 (Samsung)
 - Battery replacement: starting at $49
 - Charging port repair: starting at $59
@@ -92,17 +85,54 @@ SERVICES & PRICING (approximate — always say "starting at"):
 
 All repairs include a 90-day warranty. Most done in under an hour.
 
-SERVICE TYPES: Walk-in | On-site ($20 fee) | Remote (free diagnostic)
+SERVICE TYPES: Walk-in | On-site ($20 fee) | Remote (free diagnostic)`
+
+  const servicesBlock = state.services_block?.trim()
+    ? state.services_block.trim()
+    : DEFAULT_SERVICES_BLOCK
+
+  // ---------------------------------------------------------------------------
+  // Behavior Rules — stored as JSON array string; fall back to defaults
+  // ---------------------------------------------------------------------------
+  const DEFAULT_BEHAVIOR_RULES = [
+    'If Brandon is unavailable, create light scarcity ("slots are filling up").',
+    'Identify device model and repair type early.',
+    'Ask service preference: walk-in, on-site, or remote.',
+    'After quoting, ask if they\'d like to book.',
+    'After booking, offer screen protector ($15) or phone case ($25) upsell.',
+    'Say "starting at" — final price depends on model.',
+    'Escalate refunds/complaints: "I\'ll have Brandon reach out personally."',
+    'Keep responses concise and conversational.',
+  ]
+
+  let parsedRules: string[] = DEFAULT_BEHAVIOR_RULES
+  if (state.behavior_rules?.trim()) {
+    try {
+      const parsed = JSON.parse(state.behavior_rules) as unknown
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        parsedRules = (parsed as unknown[]).map(r => String(r)).filter(r => r.trim().length > 0)
+      }
+    } catch {
+      // Malformed JSON — fall back to defaults silently
+    }
+  }
+
+  const rulesBlock = parsedRules.map((rule, i) => `${i + 1}. ${rule}`).join('\n')
+
+  return `You are ${assistantName} (Lifestyle-Integrated Network Dispatch Assistant), the AI receptionist for EmperorLinda Cell Phone Repairs — a premium mobile repair shop run by Brandon in Jacksonville, FL.
+
+${personalityBlock}
+${greetingBlock}
+
+BRANDON'S CURRENT STATUS: ${getStatusLabel(state.status)}
+BRANDON'S LOCATION: ${state.location}
+${state.notes ? `BRANDON'S NOTE: ${state.notes}` : ''}
+${specialInfoBlock}
+
+${servicesBlock}
 
 BEHAVIOR RULES:
-1. If Brandon is unavailable, create light scarcity ("slots are filling up").
-2. Identify device model and repair type early.
-3. Ask service preference: walk-in, on-site, or remote.
-4. After quoting, ask if they'd like to book.
-5. After booking, offer screen protector ($15) or phone case ($25) upsell.
-6. Say "starting at" — final price depends on model.
-7. Escalate refunds/complaints: "I'll have Brandon reach out personally."
-8. Keep responses concise and conversational.
+${rulesBlock}
 
 Today's date: ${new Date().toISOString().split('T')[0]}`
 }

@@ -3,15 +3,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Bot,
   ChevronRight,
   Eye,
   Layers,
+  ListChecks,
   MessageSquare,
   Phone,
+  Plus,
   RotateCcw,
   Save,
   Thermometer,
+  Trash2,
   TriangleAlert,
 } from 'lucide-react'
 import {
@@ -119,17 +124,41 @@ export default function AgentPromptControlPanel() {
   const [baseline,  setBaseline]  = useState<AgentConfigRecord>(asRecord({}))
   const [preview,   setPreview]   = useState<PromptPreview | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [loading,   setLoading]   = useState(true)
   const [saving,    setSaving]    = useState(false)
+
+  // ---- Behavior Rules ----
+  const DEFAULT_BEHAVIOR_RULES = [
+    'If Brandon is unavailable, create light scarcity ("slots are filling up").',
+    'Identify device model and repair type early.',
+    'Ask service preference: walk-in, on-site, or remote.',
+    "After quoting, ask if they'd like to book.",
+    'After booking, offer screen protector ($15) or phone case ($25) upsell.',
+    'Say "starting at" — final price depends on model.',
+    "Escalate refunds/complaints: \"I'll have Brandon reach out personally.\"",
+    'Keep responses concise and conversational.',
+  ]
+  const [rules,         setRules]         = useState<string[]>(DEFAULT_BEHAVIOR_RULES)
+  const [newRuleText,   setNewRuleText]   = useState('')
+  const [rulesSaving,   setRulesSaving]   = useState(false)
+  const [rulesSaved,    setRulesSaved]    = useState(false)
+  const [rulesBaseline, setRulesBaseline] = useState<string[]>(DEFAULT_BEHAVIOR_RULES)
+  const rulesDirty = JSON.stringify(rules) !== JSON.stringify(rulesBaseline)
+
+  // ---- Data Reset Controls ----
+  const [resetChatLoading, setResetChatLoading] = useState(false)
+  const [resetLeadsLoading, setResetLeadsLoading] = useState(false)
+  const [showResetChatConfirm, setShowResetChatConfirm] = useState(false)
+  const [showResetLeadsConfirm, setShowResetLeadsConfirm] = useState(false)
 
   const changedKeys   = useMemo(() => getChangedKeys(values, baseline), [values, baseline])
   const dirtyCount    = changedKeys.length
 
-  const sharedOverrideActive = values.agent_shared_full_override.trim().length > 0
   const channelOverrideActive = activeTab === 'chat'
     ? values.agent_chat_full_override.trim().length > 0
     : values.agent_phone_full_override.trim().length > 0
-  const anyOverrideActive = sharedOverrideActive || channelOverrideActive
+  const anyOverrideActive = channelOverrideActive
 
   const updateValue = (key: AgentConfigKey, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }))
@@ -166,6 +195,27 @@ export default function AgentPromptControlPanel() {
   useEffect(() => { loadConfig() }, [])
   useEffect(() => { loadPreview(activeTab) }, [activeTab])
 
+  // Load behavior rules from /api/state
+  useEffect(() => {
+    const loadRules = async () => {
+      try {
+        const res  = await fetch('/api/state')
+        if (!res.ok) return
+        const data = await res.json() as { state?: { behavior_rules?: string } }
+        const raw  = data.state?.behavior_rules
+        if (raw) {
+          const parsed = JSON.parse(raw) as unknown
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const loaded = (parsed as unknown[]).map(r => String(r))
+            setRules(loaded)
+            setRulesBaseline(loaded)
+          }
+        }
+      } catch { /* silent */ }
+    }
+    loadRules()
+  }, [])
+
   const saveChanges = async () => {
     if (dirtyCount === 0) return
     setSaving(true)
@@ -189,6 +239,60 @@ export default function AgentPromptControlPanel() {
 
   const discardChanges = () => setValues(baseline)
 
+  const saveRules = async () => {
+    setRulesSaving(true)
+    try {
+      const res = await fetch('/api/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ behavior_rules: JSON.stringify(rules) }),
+      })
+      if (!res.ok) throw new Error('failed')
+      setRulesBaseline([...rules])
+      setRulesSaved(true)
+      setTimeout(() => setRulesSaved(false), 2500)
+    } catch { alert('Failed to save rules.') }
+    finally { setRulesSaving(false) }
+  }
+
+  const resetChatHistory = async () => {
+    if (!showResetChatConfirm) {
+      setShowResetChatConfirm(true)
+      return
+    }
+    setResetChatLoading(true)
+    try {
+      const res = await fetch('/api/chat-logs', { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to reset chat history')
+      alert('Chat history cleared successfully.')
+      setShowResetChatConfirm(false)
+    } catch (err) {
+      console.error('Failed to reset chat history:', err)
+      alert('Failed to clear chat history. Check console logs.')
+    } finally {
+      setResetChatLoading(false)
+    }
+  }
+
+  const resetLeads = async () => {
+    if (!showResetLeadsConfirm) {
+      setShowResetLeadsConfirm(true)
+      return
+    }
+    setResetLeadsLoading(true)
+    try {
+      const res = await fetch('/api/leads', { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to reset leads')
+      alert('All leads cleared successfully.')
+      setShowResetLeadsConfirm(false)
+    } catch (err) {
+      console.error('Failed to reset leads:', err)
+      alert('Failed to clear leads. Check console logs.')
+    } finally {
+      setResetLeadsLoading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="glass-panel p-8 text-center">
@@ -200,13 +304,134 @@ export default function AgentPromptControlPanel() {
 
   const chatActive  = activeTab === 'chat'
   const channelTemp = chatActive ? 'agent_chat_temperature'        : 'agent_phone_temperature'
-  const channelAdd  = chatActive ? 'agent_chat_channel_addendum'   : 'agent_phone_channel_addendum'
-  const channelRule = chatActive ? 'agent_chat_channel_rules'      : 'agent_phone_channel_rules'
+  const channelInstr = chatActive ? 'agent_chat_channel_instructions' : 'agent_phone_channel_instructions'
   const channelOver = chatActive ? 'agent_chat_full_override'      : 'agent_phone_full_override'
   const channelName = chatActive ? 'Web Chat' : 'Phone'
 
   return (
     <div className="space-y-6 pb-20 relative">
+
+      {/* ---- Behavior Rules ---- */}
+      <div className="glass-panel p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <ListChecks className="w-4 h-4 text-emperor-gold" />
+          <h2 className="font-display font-semibold text-sm text-emperor-cream/80">Behavior Rules</h2>
+          <span className="ml-auto text-[10px] font-mono text-emperor-gold/40 border border-emperor-gold/20 rounded px-1.5 py-0.5">
+            {rules.length} rules active
+          </span>
+        </div>
+        <p className="text-[11px] text-emperor-cream/25 font-mono mb-4">
+          Numbered directives LINDA follows on every call and chat. Changes apply to all channels.
+        </p>
+
+        <div className="space-y-1.5 mb-4">
+          {rules.map((rule, idx) => (
+            <div key={idx} className="flex items-start gap-2 group" title={rule}>
+              <span className="text-[10px] font-mono text-emperor-gold/40 mt-2.5 w-5 shrink-0 text-right">{idx + 1}.</span>
+              <input
+                type="text"
+                value={rule}
+                onChange={(e) => {
+                  const updated = [...rules]
+                  updated[idx] = e.target.value
+                  setRules(updated)
+                }}
+                className="input-emperor !py-1.5 text-xs font-mono flex-1 min-w-0"
+              />
+              <div className="flex gap-0.5 mt-1.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                <button
+                  onClick={() => {
+                    if (idx > 0) {
+                      const updated = [...rules]
+                      ;[updated[idx], updated[idx - 1]] = [updated[idx - 1], updated[idx]]
+                      setRules(updated)
+                    }
+                  }}
+                  disabled={idx === 0}
+                  className="p-1.5 rounded-lg text-emperor-cream/15 hover:text-emperor-gold/70 hover:bg-emperor-gold/5 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                  title="Move up"
+                >
+                  <ArrowUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (idx < rules.length - 1) {
+                      const updated = [...rules]
+                      ;[updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]]
+                      setRules(updated)
+                    }
+                  }}
+                  disabled={idx === rules.length - 1}
+                  className="p-1.5 rounded-lg text-emperor-cream/15 hover:text-emperor-gold/70 hover:bg-emperor-gold/5 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                  title="Move down"
+                >
+                  <ArrowDown className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setRules(rules.filter((_, i) => i !== idx))}
+                  className="p-1.5 rounded-lg text-emperor-cream/15 hover:text-red-400/70 hover:bg-red-400/5 transition-all"
+                  title="Remove rule"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-2 mb-3">
+          <input
+            type="text"
+            value={newRuleText}
+            onChange={(e) => setNewRuleText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && newRuleText.trim()) {
+                setRules((prev) => [...prev, newRuleText.trim()])
+                setNewRuleText('')
+              }
+            }}
+            className="input-emperor !py-1.5 text-xs font-mono flex-1"
+            placeholder="Type a new rule and press Enter…"
+          />
+          <button
+            onClick={() => {
+              if (!newRuleText.trim()) return
+              setRules((prev) => [...prev, newRuleText.trim()])
+              setNewRuleText('')
+            }}
+            className="px-3 py-1.5 rounded-lg bg-emperor-gold/10 border border-emperor-gold/20 text-emperor-gold hover:bg-emperor-gold/20 transition-colors shrink-0"
+            title="Add rule"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setRules(DEFAULT_BEHAVIOR_RULES)}
+            className="text-[10px] font-mono text-emperor-cream/20 hover:text-emperor-gold/60 transition-colors"
+          >
+            ↺ reset to defaults
+          </button>
+          {rulesDirty && (
+            <button
+              onClick={saveRules}
+              disabled={rulesSaving}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                rulesSaved
+                  ? 'bg-accent-emerald/20 text-accent-emerald border border-accent-emerald/30'
+                  : 'btn-emperor'
+              }`}
+            >
+              {rulesSaving
+                ? <><div className="w-3 h-3 border border-emperor-black/30 border-t-emperor-black rounded-full animate-spin" /> Saving...</>
+                : rulesSaved
+                  ? <><Save className="w-3 h-3" /> Saved!</>
+                  : <><Save className="w-3 h-3" /> Save Rules</>}
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Header + Channel toggle */}
       <div className="flex items-start justify-between gap-4">
@@ -255,7 +480,6 @@ export default function AgentPromptControlPanel() {
           <div>
             <p className="text-sm font-semibold text-amber-200 mb-0.5">Full Override Active</p>
             <p className="text-xs text-amber-200/60 font-mono">
-              {sharedOverrideActive && 'Shared override replaces the assembled prompt for BOTH agents. '}
               {channelOverrideActive && `${channelName} channel override replaces the assembled prompt for this agent. `}
               Assembled fragments below are ignored when override is filled.
             </p>
@@ -315,39 +539,6 @@ export default function AgentPromptControlPanel() {
               <p className="text-[10px] text-emperor-cream/20 mt-1 font-mono">Jobs above this amount  agent flags for Brandon.</p>
             </div>
 
-            <div>
-              <FieldLabel>Additional Rules</FieldLabel>
-              <textarea
-                value={values.agent_shared_additional_rules}
-                onChange={(e) => updateValue('agent_shared_additional_rules', e.target.value)}
-                className="input-emperor text-sm resize-none h-24"
-                placeholder="e.g. Never quote prices without checking parts availability first..."
-              />
-              <p className="text-[10px] text-emperor-cream/20 mt-1 font-mono">{values.agent_shared_additional_rules.length} chars</p>
-            </div>
-
-            <div>
-              <FieldLabel>Contextual Info</FieldLabel>
-              <textarea
-                value={values.agent_shared_contextual_info}
-                onChange={(e) => updateValue('agent_shared_contextual_info', e.target.value)}
-                className="input-emperor text-sm resize-none h-20"
-                placeholder="e.g. Brandon only works on iPhones and Samsung Galaxy devices..."
-              />
-              <p className="text-[10px] text-emperor-cream/20 mt-1 font-mono">{values.agent_shared_contextual_info.length} chars</p>
-            </div>
-
-            <div>
-              <FieldLabel>Base Prompt Override (optional)</FieldLabel>
-              <textarea
-                value={values.agent_shared_base_prompt_override}
-                onChange={(e) => updateValue('agent_shared_base_prompt_override', e.target.value)}
-                className="input-emperor text-sm resize-none h-20"
-                placeholder="Leave empty to use the auto-assembled base prompt..."
-              />
-              <p className="text-[10px] text-emperor-cream/20 mt-1 font-mono">Replaces only the base section, not channel-specific parts.</p>
-            </div>
-
           </Section>
         </div>
 
@@ -362,93 +553,147 @@ export default function AgentPromptControlPanel() {
             />
 
             <div>
-              <FieldLabel>{channelName} Channel Addendum</FieldLabel>
+              <FieldLabel>{channelName} Channel Instructions</FieldLabel>
               <textarea
-                value={values[channelAdd]}
-                onChange={(e) => updateValue(channelAdd, e.target.value)}
-                className="input-emperor text-sm resize-none h-24"
+                value={values[channelInstr]}
+                onChange={(e) => updateValue(channelInstr, e.target.value)}
+                className="input-emperor text-sm resize-none h-32"
                 placeholder={chatActive
-                  ? "e.g. End responses with a booking CTA when relevant..."
-                  : "e.g. Keep all responses under 2 sentences. Spell out numbers..."}
+                  ? "e.g. End responses with a booking CTA. Never reveal discounts without approval. Keep under 3 sentences..."
+                  : "e.g. Keep all responses under 2 sentences. Spell out numbers. Do not ask for phone model if already provided..."}
               />
-              <p className="text-[10px] text-emperor-cream/20 mt-1 font-mono">Appended after the shared base prompt.</p>
-            </div>
-
-            <div>
-              <FieldLabel>{channelName} Channel Rules</FieldLabel>
-              <textarea
-                value={values[channelRule]}
-                onChange={(e) => updateValue(channelRule, e.target.value)}
-                className="input-emperor text-sm resize-none h-24"
-                placeholder={chatActive
-                  ? "e.g. Never reveal specific discount percentages without Brandon's approval..."
-                  : "e.g. Do not ask for phone model  caller has already provided it..."}
-              />
-              <p className="text-[10px] text-emperor-cream/20 mt-1 font-mono">Channel-specific guardrails and hard rules.</p>
+              <p className="text-[10px] text-emperor-cream/20 mt-1 font-mono">Combined addendum + rules for this channel.</p>
             </div>
 
           </Section>
 
-          {/* Prompt Preview */}
-          <div className="rounded-xl border border-emperor-cream/8 bg-emperor-cream/[0.015] overflow-hidden">
-            <button
-              onClick={() => { setShowPreview(p => !p); if (!showPreview) loadPreview(activeTab) }}
-              className="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-emperor-cream/5 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Eye className="w-3.5 h-3.5 text-emperor-cream/40" />
-                <span className="text-xs font-mono text-emperor-cream/50">Assembled Prompt Preview  {channelName}</span>
-              </div>
-              <ChevronRight className={`w-3.5 h-3.5 text-emperor-cream/30 transition-transform ${showPreview ? 'rotate-90' : ''}`} />
-            </button>
-            {showPreview && (
-              <div className="border-t border-emperor-cream/8">
-                <div className="p-4 max-h-64 overflow-y-auto">
-                  <pre className="text-[11px] whitespace-pre-wrap text-emperor-cream/50 font-mono leading-relaxed">
-                    {preview?.system_prompt ?? 'Preview unavailable  save changes first to refresh.'}
-                  </pre>
-                </div>
-                <div className="px-4 py-2 border-t border-emperor-cream/8">
-                  <p className="text-[10px] text-emperor-cream/20 font-mono">
-                    source: {preview?.source ?? 'n/a'}  {preview?.system_prompt?.length ?? 0} chars
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
         </div>
+      </div>
+
+      {/* Prompt Preview  Full Width */}
+      <div className="rounded-xl border border-emperor-cream/8 bg-emperor-cream/[0.015] overflow-hidden">
+        <button
+          onClick={() => { setShowPreview(p => !p); if (!showPreview) loadPreview(activeTab) }}
+          className="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-emperor-cream/5 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Eye className="w-3.5 h-3.5 text-emperor-cream/40" />
+            <span className="text-xs font-mono text-emperor-cream/50">Assembled Prompt Preview  {channelName}</span>
+          </div>
+          <ChevronRight className={`w-3.5 h-3.5 text-emperor-cream/30 transition-transform ${showPreview ? 'rotate-90' : ''}`} />
+        </button>
+        {showPreview && (
+          <div className="border-t border-emperor-cream/8">
+            <div className="p-4 max-h-64 overflow-y-auto">
+              <pre className="text-[11px] whitespace-pre-wrap text-emperor-cream/50 font-mono leading-relaxed">
+                {preview?.system_prompt ?? 'Preview unavailable  save changes first to refresh.'}
+              </pre>
+            </div>
+            <div className="px-4 py-2 border-t border-emperor-cream/8">
+              <p className="text-[10px] text-emperor-cream/20 font-mono">
+                source: {preview?.source ?? 'n/a'}  {preview?.system_prompt?.length ?? 0} chars
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Danger Zone  Full Overrides */}
       <Section label="Danger Zone  full overrides" accent>
-        <div className="flex items-start gap-3 mb-1">
+        <div className="flex items-start gap-3 mb-3">
           <TriangleAlert className="w-4 h-4 text-red-300/70 shrink-0 mt-0.5" />
           <p className="text-xs text-red-200/60 font-mono leading-relaxed">
             Full overrides <strong className="text-red-200/90">completely replace</strong> the assembled prompt.
-            All shared fragments, rules, and addendums above are ignored.
+            All shared fragments, instructions, and rules above are ignored.
             Use only when you need precise control over the raw system prompt.
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-4">
-          <div>
+        <div>
+          <div className="flex items-center justify-between mb-2">
             <FieldLabel>{channelName} Full Override</FieldLabel>
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="text-[10px] font-mono text-emperor-cream/40 hover:text-emperor-gold/60 transition-colors"
+            >
+              {showAdvanced ? '△ hide' : '▽ show'}
+            </button>
+          </div>
+          {showAdvanced && (
             <textarea
               value={values[channelOver]}
               onChange={(e) => updateValue(channelOver, e.target.value)}
               className="input-emperor text-sm resize-none h-32"
               placeholder={`Leave empty to use assembled ${channelName.toLowerCase()} prompt...`}
             />
-          </div>
+          )}
+        </div>
+
+        <div className="border-t border-red-400/20 pt-4 mt-4 space-y-3">
+          <p className="text-[10px] uppercase tracking-widest font-mono font-semibold text-red-300/60">Data Reset Controls</p>
+          
+          {/* Reset Chat History */}
           <div>
-            <FieldLabel>Shared Full Override (highest priority)</FieldLabel>
-            <textarea
-              value={values.agent_shared_full_override}
-              onChange={(e) => updateValue('agent_shared_full_override', e.target.value)}
-              className="input-emperor text-sm resize-none h-32"
-              placeholder="Leave empty unless you need to override both agents at once..."
-            />
+            {showResetChatConfirm && (
+              <div className="mb-2 p-3 rounded-lg border border-red-400/30 bg-red-500/5">
+                <p className="text-xs text-red-200/80 font-mono mb-2">Are you sure? This cannot be undone.</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={resetChatHistory}
+                    disabled={resetChatLoading}
+                    className="flex-1 px-2 py-1.5 rounded-lg bg-red-400/20 text-red-300 text-xs font-semibold hover:bg-red-400/30 disabled:opacity-50 transition-colors"
+                  >
+                    {resetChatLoading ? 'Clearing...' : 'Confirm Clear'}
+                  </button>
+                  <button
+                    onClick={() => setShowResetChatConfirm(false)}
+                    disabled={resetChatLoading}
+                    className="flex-1 px-2 py-1.5 rounded-lg border border-emperor-cream/20 text-emperor-cream/60 text-xs hover:bg-emperor-cream/5 disabled:opacity-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            <button
+              onClick={resetChatHistory}
+              disabled={showResetChatConfirm || resetChatLoading}
+              className="w-full px-3 py-2 rounded-lg border border-red-400/30 text-red-300 text-xs font-semibold hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              🗑️ Clear Chat History
+            </button>
+          </div>
+
+          {/* Reset Leads */}
+          <div>
+            {showResetLeadsConfirm && (
+              <div className="mb-2 p-3 rounded-lg border border-red-400/30 bg-red-500/5">
+                <p className="text-xs text-red-200/80 font-mono mb-2">Are you sure? This cannot be undone.</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={resetLeads}
+                    disabled={resetLeadsLoading}
+                    className="flex-1 px-2 py-1.5 rounded-lg bg-red-400/20 text-red-300 text-xs font-semibold hover:bg-red-400/30 disabled:opacity-50 transition-colors"
+                  >
+                    {resetLeadsLoading ? 'Clearing...' : 'Confirm Clear'}
+                  </button>
+                  <button
+                    onClick={() => setShowResetLeadsConfirm(false)}
+                    disabled={resetLeadsLoading}
+                    className="flex-1 px-2 py-1.5 rounded-lg border border-emperor-cream/20 text-emperor-cream/60 text-xs hover:bg-emperor-cream/5 disabled:opacity-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            <button
+              onClick={resetLeads}
+              disabled={showResetLeadsConfirm || resetLeadsLoading}
+              className="w-full px-3 py-2 rounded-lg border border-red-400/30 text-red-300 text-xs font-semibold hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              🗑️ Clear All Leads
+            </button>
           </div>
         </div>
       </Section>

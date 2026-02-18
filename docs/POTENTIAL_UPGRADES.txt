@@ -4,3 +4,4 @@
 4. Auto callback/repond systems
 5. Inventory Management
 6. CRM Integration (Customer Lead System)
+7. Accept payments before booking!

@@ -275,11 +275,19 @@ app.register(async (fastify) => {
           )
         }
 
-        if (event.type === 'response.done' && event.response?.status === 'failed') {
-          app.log.error({ event }, 'OpenAI response failed')
+        if (event.type === 'response.done') {
+          if (event.response?.status === 'failed') {
+            app.log.error({ event }, 'OpenAI response failed')
+          }
+          // Response finished (completed or failed) — clear tracking so a stale
+          // lastAssistantItemId doesn't trigger a response.cancel on the next utterance.
+          responseStartTimestamp = null
+          lastAssistantItemId = null
         }
 
         if (event.type === 'input_audio_buffer.speech_started' && responseStartTimestamp !== null) {
+          // responseStartTimestamp is only non-null while a response is still streaming,
+          // so this cancel is always against an active response.
           if (lastAssistantItemId) {
             openAiWs.send(JSON.stringify({ type: 'response.cancel' }))
           }

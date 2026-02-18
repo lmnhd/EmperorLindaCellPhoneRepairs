@@ -12,19 +12,13 @@ export type PromptSource = 'assembled' | 'full_override' | 'fallback'
 export const KNOWN_AGENT_CONFIG_DEFAULTS = {
   agent_shared_tone: 'professional',
   agent_shared_response_length: 'medium',
-  agent_shared_base_prompt_override: '',
-  agent_shared_additional_rules: '',
-  agent_shared_contextual_info: '',
   agent_shared_escalation_threshold: '500',
-  agent_shared_full_override: '',
 
-  agent_chat_channel_addendum: '',
-  agent_chat_channel_rules: '',
+  agent_chat_channel_instructions: '',
   agent_chat_full_override: '',
   agent_chat_temperature: '0.7',
 
-  agent_phone_channel_addendum: '',
-  agent_phone_channel_rules: '',
+  agent_phone_channel_instructions: '',
   agent_phone_full_override: '',
   agent_phone_temperature: '0.7',
 } as const
@@ -110,8 +104,6 @@ export function assembleAgentChannelConfig(state: BrandonState, channel: AgentCh
     ? config.agent_chat_full_override.trim()
     : config.agent_phone_full_override.trim()
 
-  const sharedFullOverride = config.agent_shared_full_override.trim()
-
   if (channelFullOverride.length > 0) {
     return {
       systemPrompt: channelFullOverride,
@@ -122,25 +114,12 @@ export function assembleAgentChannelConfig(state: BrandonState, channel: AgentCh
     }
   }
 
-  if (sharedFullOverride.length > 0) {
-    return {
-      systemPrompt: sharedFullOverride,
-      temperature: parseTemperature(channel === 'chat' ? config.agent_chat_temperature : config.agent_phone_temperature),
-      source: 'full_override',
-      voice: state.voice ?? 'alloy',
-      persona: coercePersona(state.persona),
-    }
-  }
-
   const persona = coercePersona(state.persona)
-  const basePrompt = config.agent_shared_base_prompt_override.trim() || buildCorePrompt(state, persona)
+  const basePrompt = buildCorePrompt(state, persona)
   const defaultChannelAddendum = buildDefaultChannelAddendum(toChannelType(channel))
-  const customChannelAddendum = channel === 'chat'
-    ? config.agent_chat_channel_addendum.trim()
-    : config.agent_phone_channel_addendum.trim()
-  const customChannelRules = channel === 'chat'
-    ? config.agent_chat_channel_rules.trim()
-    : config.agent_phone_channel_rules.trim()
+  const channelInstructions = channel === 'chat'
+    ? config.agent_chat_channel_instructions.trim()
+    : config.agent_phone_channel_instructions.trim()
 
   const pieces: string[] = [basePrompt, defaultChannelAddendum]
 
@@ -151,20 +130,8 @@ export function assembleAgentChannelConfig(state: BrandonState, channel: AgentCh
 
   pieces.push(`\n${getLengthDirective(config.agent_shared_response_length, channel)}`)
 
-  if (customChannelAddendum.length > 0) {
-    pieces.push(`\nCHANNEL ADDENDUM:\n${customChannelAddendum}`)
-  }
-
-  if (config.agent_shared_additional_rules.trim().length > 0) {
-    pieces.push(`\nADDITIONAL RULES:\n${config.agent_shared_additional_rules.trim()}`)
-  }
-
-  if (config.agent_shared_contextual_info.trim().length > 0) {
-    pieces.push(`\nCONTEXTUAL INFO:\n${config.agent_shared_contextual_info.trim()}`)
-  }
-
-  if (customChannelRules.length > 0) {
-    pieces.push(`\nCHANNEL-SPECIFIC RULES:\n${customChannelRules}`)
+  if (channelInstructions.length > 0) {
+    pieces.push(`\nCHANNEL INSTRUCTIONS:\n${channelInstructions}`)
   }
 
   pieces.push(`\nESCALATION THRESHOLD: ${config.agent_shared_escalation_threshold} (high-value or sensitive issues should be escalated).`)

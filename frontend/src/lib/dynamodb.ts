@@ -10,6 +10,7 @@ import {
   GetCommand,
   PutCommand,
   ScanCommand,
+  DeleteCommand,
   type GetCommandOutput,
   type PutCommandOutput,
   type ScanCommandOutput,
@@ -59,19 +60,16 @@ export interface BrandonState {
   auto_upsell?: boolean
   agent_shared_tone?: string
   agent_shared_response_length?: string
-  agent_shared_base_prompt_override?: string
-  agent_shared_additional_rules?: string
-  agent_shared_contextual_info?: string
   agent_shared_escalation_threshold?: string
-  agent_shared_full_override?: string
-  agent_chat_channel_addendum?: string
-  agent_chat_channel_rules?: string
+  agent_chat_channel_instructions?: string
   agent_chat_full_override?: string
   agent_chat_temperature?: string
-  agent_phone_channel_addendum?: string
-  agent_phone_channel_rules?: string
+  agent_phone_channel_instructions?: string
   agent_phone_full_override?: string
   agent_phone_temperature?: string
+  // Dynamic knowledge base — editable from the dashboard
+  services_block?: string      // Full services & pricing text block
+  behavior_rules?: string      // JSON array of rule strings e.g. '["Rule 1","Rule 2"]'
   updated_at: number
 }
 
@@ -84,6 +82,8 @@ export interface RepairLead {
   appointment_date: string
   appointment_time: string
   status: string
+  lead_type: 'appointment' | 'callback' | 'on_site'   // type of scheduled event
+  notes?: string                                       // optional context / callback reason
   created_at: number
 }
 
@@ -157,19 +157,15 @@ export async function updateBrandonState(
     | 'auto_upsell'
     | 'agent_shared_tone'
     | 'agent_shared_response_length'
-    | 'agent_shared_base_prompt_override'
-    | 'agent_shared_additional_rules'
-    | 'agent_shared_contextual_info'
     | 'agent_shared_escalation_threshold'
-    | 'agent_shared_full_override'
-    | 'agent_chat_channel_addendum'
-    | 'agent_chat_channel_rules'
+    | 'agent_chat_channel_instructions'
     | 'agent_chat_full_override'
     | 'agent_chat_temperature'
-    | 'agent_phone_channel_addendum'
-    | 'agent_phone_channel_rules'
+    | 'agent_phone_channel_instructions'
     | 'agent_phone_full_override'
     | 'agent_phone_temperature'
+    | 'services_block'
+    | 'behavior_rules'
   >>
 ): Promise<BrandonState> {
   // Fetch current state first (merge approach)
@@ -191,19 +187,15 @@ export async function updateBrandonState(
     auto_upsell: updates.auto_upsell ?? current.auto_upsell,
     agent_shared_tone: updates.agent_shared_tone ?? current.agent_shared_tone,
     agent_shared_response_length: updates.agent_shared_response_length ?? current.agent_shared_response_length,
-    agent_shared_base_prompt_override: updates.agent_shared_base_prompt_override ?? current.agent_shared_base_prompt_override,
-    agent_shared_additional_rules: updates.agent_shared_additional_rules ?? current.agent_shared_additional_rules,
-    agent_shared_contextual_info: updates.agent_shared_contextual_info ?? current.agent_shared_contextual_info,
     agent_shared_escalation_threshold: updates.agent_shared_escalation_threshold ?? current.agent_shared_escalation_threshold,
-    agent_shared_full_override: updates.agent_shared_full_override ?? current.agent_shared_full_override,
-    agent_chat_channel_addendum: updates.agent_chat_channel_addendum ?? current.agent_chat_channel_addendum,
-    agent_chat_channel_rules: updates.agent_chat_channel_rules ?? current.agent_chat_channel_rules,
+    agent_chat_channel_instructions: updates.agent_chat_channel_instructions ?? current.agent_chat_channel_instructions,
     agent_chat_full_override: updates.agent_chat_full_override ?? current.agent_chat_full_override,
     agent_chat_temperature: updates.agent_chat_temperature ?? current.agent_chat_temperature,
-    agent_phone_channel_addendum: updates.agent_phone_channel_addendum ?? current.agent_phone_channel_addendum,
-    agent_phone_channel_rules: updates.agent_phone_channel_rules ?? current.agent_phone_channel_rules,
+    agent_phone_channel_instructions: updates.agent_phone_channel_instructions ?? current.agent_phone_channel_instructions,
     agent_phone_full_override: updates.agent_phone_full_override ?? current.agent_phone_full_override,
     agent_phone_temperature: updates.agent_phone_temperature ?? current.agent_phone_temperature,
+    services_block: updates.services_block ?? current.services_block,
+    behavior_rules: updates.behavior_rules ?? current.behavior_rules,
     updated_at: Math.floor(Date.now() / 1000),
   }
 
@@ -226,12 +218,15 @@ export async function createLead(
   repairType: string,
   device: string,
   date: string,
-  time: string
+  time: string,
+  leadType: 'appointment' | 'callback' | 'on_site' = 'appointment',
+  notes?: string,
 ): Promise<string> {
   const now = new Date()
   const timestamp = now.toISOString().replace(/[-:T]/g, '').slice(0, 15)
   const random = Math.random().toString(36).substring(2, 8)
-  const leadId = `LEAD-${timestamp}-${random}`
+  const prefix = leadType === 'callback' ? 'CALLBACK' : leadType === 'on_site' ? 'ONSITE' : 'LEAD'
+  const leadId = `${prefix}-${timestamp}-${random}`
 
   const lead: RepairLead = {
     lead_id: leadId,
@@ -242,6 +237,8 @@ export async function createLead(
     appointment_date: date,
     appointment_time: time,
     status: 'booked',
+    lead_type: leadType,
+    notes,
     created_at: Math.floor(now.getTime() / 1000),
   }
 
@@ -272,7 +269,7 @@ export async function getAllLeads(): Promise<RepairLead[]> {
   const result: ScanCommandOutput = await docClient.send(
     new ScanCommand({
       TableName: REPAIRS_TABLE,
-      // Exclude chat logs (which have CHATLOG- prefix)
+  // Exclude chat logs (which have CHATLOG- prefix)
       FilterExpression: 'NOT begins_with(lead_id, :prefix)',
       ExpressionAttributeValues: { ':prefix': 'CHATLOG-' },
     })
@@ -380,4 +377,38 @@ export async function getAllChatLogs(): Promise<ChatLogEntry[]> {
 
   const logs = (result.Items ?? []) as ChatLogEntry[]
   return logs.sort((a, b) => b.last_updated - a.last_updated)
+}
+
+export async function deleteAllChatLogs(): Promise<number> {
+  // Fetch all chat logs
+  const logs = await getAllChatLogs()
+  
+  // Delete each log entry
+  for (const log of logs) {
+    await docClient.send(
+      new DeleteCommand({
+        TableName: REPAIRS_TABLE,
+        Key: { lead_id: log.lead_id, timestamp: log.timestamp },
+      })
+    )
+  }
+  
+  return logs.length
+}
+
+export async function deleteAllLeads(): Promise<number> {
+  // Fetch all leads
+  const leads = await getAllLeads()
+  
+  // Delete each lead entry
+  for (const lead of leads) {
+    await docClient.send(
+      new DeleteCommand({
+        TableName: REPAIRS_TABLE,
+        Key: { lead_id: lead.lead_id, timestamp: lead.timestamp },
+      })
+    )
+  }
+  
+  return leads.length
 }
