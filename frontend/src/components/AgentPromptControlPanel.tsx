@@ -309,10 +309,10 @@ export default function AgentPromptControlPanel() {
   const channelName = chatActive ? 'Web Chat' : 'Phone'
 
   return (
-    <div className="space-y-6 pb-20 relative">
+    <div className="relative space-y-4 pb-16 sm:space-y-6 sm:pb-20">
 
       {/* ---- Behavior Rules ---- */}
-      <div className="glass-panel p-6">
+      <div className="glass-panel p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-4">
           <ListChecks className="w-4 h-4 text-emperor-gold" />
           <h2 className="font-display font-semibold text-sm text-emperor-cream/80">Behavior Rules</h2>
@@ -326,8 +326,8 @@ export default function AgentPromptControlPanel() {
 
         <div className="space-y-1.5 mb-4">
           {rules.map((rule, idx) => (
-            <div key={idx} className="flex items-start gap-2 group" title={rule}>
-              <span className="text-[10px] font-mono text-emperor-gold/40 mt-2.5 w-5 shrink-0 text-right">{idx + 1}.</span>
+            <div key={idx} className="flex items-center gap-1.5 sm:gap-2 group" title={rule}>
+              <span className="text-[10px] font-mono text-emperor-gold/40 w-4 sm:w-5 shrink-0 text-right">{idx + 1}.</span>
               <input
                 type="text"
                 value={rule}
@@ -336,9 +336,9 @@ export default function AgentPromptControlPanel() {
                   updated[idx] = e.target.value
                   setRules(updated)
                 }}
-                className="input-emperor !py-1.5 text-xs font-mono flex-1 min-w-0"
+                className="input-emperor !py-1.5 text-[11px] sm:text-xs font-mono flex-1 min-w-0"
               />
-              <div className="flex gap-0.5 mt-1.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+              <div className="hidden sm:flex gap-0.5 mt-1.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
                 <button
                   onClick={() => {
                     if (idx > 0) {
@@ -434,23 +434,23 @@ export default function AgentPromptControlPanel() {
       </div>
 
       {/* Header + Channel toggle */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <Bot className="w-4 h-4 text-emperor-gold" />
             <h2 className="font-display font-semibold text-emperor-cream/90">Prompt Control Center</h2>
           </div>
-          <p className="text-xs text-emperor-cream/30 font-mono">
+          <p className="text-xs leading-relaxed text-emperor-cream/30 font-mono max-w-[42rem]">
             <span className="text-emperor-cream/50">Shared settings</span> apply to both agents.
             Channel tabs control addendum, rules, temperature, and overrides.
           </p>
         </div>
 
         {/* Channel tabs */}
-        <div className="flex shrink-0 items-center rounded-xl border border-emperor-cream/10 p-1 gap-1">
+        <div className="flex w-full shrink-0 items-center rounded-xl border border-emperor-cream/10 p-1 gap-1 sm:w-auto">
           <button
             onClick={() => setActiveTab('chat')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex flex-1 items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all sm:flex-none sm:px-4 ${
               activeTab === 'chat'
                 ? 'bg-emperor-gold/15 border border-emperor-gold/30 text-emperor-gold'
                 : 'text-emperor-cream/40 hover:text-emperor-cream/70'
@@ -461,7 +461,7 @@ export default function AgentPromptControlPanel() {
           </button>
           <button
             onClick={() => setActiveTab('phone')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex flex-1 items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all sm:flex-none sm:px-4 ${
               activeTab === 'phone'
                 ? 'bg-emperor-gold/15 border border-emperor-gold/30 text-emperor-gold'
                 : 'text-emperor-cream/40 hover:text-emperor-cream/70'

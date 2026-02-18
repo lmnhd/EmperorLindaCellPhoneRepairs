@@ -383,7 +383,7 @@ export default function DashboardPage() {
     <main className="min-h-screen bg-emperor-black">
 
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-emperor-black/90 border-b border-emperor-gold/10">
-        <div className="max-w-5xl mx-auto px-6">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between py-3">
             <div className="flex items-center gap-4">
               <Link href="/" className="p-2 -ml-2 rounded-lg hover:bg-emperor-cream/5 transition-colors">
@@ -410,14 +410,14 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="flex items-end gap-1 -mb-px">
+          <div className="flex items-end gap-1 -mb-px overflow-x-auto no-scrollbar">
             {TABS.map(tab => {
               const isActive = activeTab === tab.id
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium border-b-2 transition-all duration-150 rounded-t-lg ${
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-all duration-150 rounded-t-lg whitespace-nowrap sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm ${
                     isActive
                       ? 'border-emperor-gold text-emperor-gold bg-emperor-gold/5'
                       : 'border-transparent text-emperor-cream/40 hover:text-emperor-cream/70 hover:bg-emperor-cream/[0.03]'
@@ -441,7 +441,7 @@ export default function DashboardPage() {
 
       <ChatLogOverlay isOpen={chatLogOpen} onClose={() => setChatLogOpen(false)} />
 
-      <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="max-w-5xl mx-auto px-4 py-5 sm:px-6 sm:py-8">
 
         {/* TAB 1  BRANDON */}
         {activeTab === 'brandon' && (

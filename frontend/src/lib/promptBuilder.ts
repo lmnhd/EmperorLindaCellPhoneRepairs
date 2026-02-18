@@ -142,8 +142,10 @@ export function buildDefaultChannelAddendum(channel: ChannelType): string {
     return `
 
 TEXT CHANNEL RULES:
-- Keep replies concise but complete for chat.
-- You may use short lists when they improve clarity.
+- Keep each reply to 1-3 short sentences.
+- Keep first response under 45 words.
+- Ask at most ONE question per turn.
+- Do NOT dump checklists unless the customer explicitly asks for a full breakdown.
 - Keep momentum toward diagnosis and booking.`
   }
 

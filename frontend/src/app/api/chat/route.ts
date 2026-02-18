@@ -38,6 +38,37 @@ interface ConversationEntry {
   tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]
 }
 
+function extractAssistantContent(message: OpenAI.Chat.Completions.ChatCompletionMessage): string {
+  if (typeof message.content === 'string') {
+    return message.content.trim()
+  }
+
+  const unknownMessage = message as unknown as { content?: unknown }
+  const content = unknownMessage.content
+
+  if (!Array.isArray(content)) {
+    return ''
+  }
+
+  const text = content
+    .map((part) => {
+      if (typeof part !== 'object' || part === null) {
+        return ''
+      }
+
+      const maybePart = part as { type?: unknown; text?: unknown }
+      if (maybePart.type === 'text' && typeof maybePart.text === 'string') {
+        return maybePart.text
+      }
+
+      return ''
+    })
+    .join(' ')
+    .trim()
+
+  return text
+}
+
 // ---------------------------------------------------------------------------
 // OpenAI client (server-side only — API key never exposed to browser)
 // ---------------------------------------------------------------------------
@@ -51,6 +82,8 @@ const openai = new OpenAI({
 // ---------------------------------------------------------------------------
 
 const conversations = new Map<string, ConversationEntry[]>()
+
+const HERO_CHAT_OPENING_MESSAGE = 'Welcome, need your phone repaired fast?'
 
 // Auto-clean old conversations after 30 min
 setInterval(() => {
@@ -345,6 +378,15 @@ export async function POST(req: NextRequest) {
 
     if (!history) {
       history = [{ role: 'system' as const, content: assembledConfig.systemPrompt }]
+
+      const isHeroWebChat = channel === 'text' && body.phone === 'web-chat'
+      if (isHeroWebChat) {
+        history.push({
+          role: 'assistant' as const,
+          content: HERO_CHAT_OPENING_MESSAGE,
+        })
+      }
+
       conversations.set(sessionId, history)
     } else {
       // Refresh system prompt so status/persona changes take effect mid-conversation
@@ -363,16 +405,22 @@ export async function POST(req: NextRequest) {
 
       // Use faster model for voice channels to reduce latency
       const model = channel === 'text' ? 'gpt-5-mini' : 'gpt-4o-mini'
-      const maxTokens = channel === 'text' ? undefined : 150
+      const maxTokens = channel === 'text' ? 260 : 150
+      const tokenLimitParam = model.startsWith('gpt-5')
+        ? { max_completion_tokens: maxTokens }
+        : { max_tokens: maxTokens }
+      const shouldSendTemperature = !model.startsWith('gpt-5')
 
-      const completion = await openai.chat.completions.create({
+      const completionParams: OpenAI.Chat.Completions.ChatCompletionCreateParams = {
         model,
         messages: history as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         tools,
         tool_choice: 'auto',
-        temperature: assembledConfig.temperature,
-        ...(maxTokens ? { max_tokens: maxTokens } : {}),
-      })
+        ...(maxTokens ? tokenLimitParam : {}),
+        ...(shouldSendTemperature ? { temperature: assembledConfig.temperature } : {}),
+      }
+
+      const completion = await openai.chat.completions.create(completionParams)
 
       const choice = completion.choices[0]
       const msg = choice.message
@@ -407,7 +455,29 @@ export async function POST(req: NextRequest) {
       }
 
       // No tool calls — final text response
-      const reply = msg.content || "I'm here! What can I help you with?"
+      let reply = extractAssistantContent(msg)
+
+      if (!reply) {
+        console.warn('Primary model returned empty text; attempting rescue completion', {
+          model,
+          channel,
+          finishReason: choice.finish_reason,
+          hasToolCalls: Boolean(msg.tool_calls?.length),
+        })
+
+        const rescueCompletion = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: history as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+          max_tokens: 120,
+          temperature: 0.6,
+        })
+
+        reply = extractAssistantContent(rescueCompletion.choices[0].message)
+      }
+
+      if (!reply) {
+        reply = "I can help right now—what phone model and repair do you need?"
+      }
 
       history.push({ role: 'assistant' as const, content: reply })
 

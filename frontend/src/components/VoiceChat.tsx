@@ -64,18 +64,26 @@ type VoiceName = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
 type CallState = 'calling' | 'connected' | 'ending'
 
 interface TranscriptEntry {
-  role: 'user' | 'ai'
+  role: 'user' | 'assistant'
   text: string
+  timestamp: number
+}
+
+interface VoiceHistoryEntry {
+  role: 'user' | 'assistant'
+  content: string
   timestamp: number
 }
 
 interface VoiceChatProps {
   persona: PersonaKey
-  onEndCall: () => void
+  onEndCall: (history: VoiceHistoryEntry[]) => void
   brandonStatus?: string
   brandonLocation?: string
   brandonNotes?: string
   voiceOverride?: VoiceName
+  sessionId?: string
+  handoffPrompt?: string
 }
 
 interface ChatApiResponse {
@@ -110,6 +118,8 @@ export default function VoiceChat({
   brandonLocation,
   brandonNotes,
   voiceOverride,
+  sessionId,
+  handoffPrompt,
 }: VoiceChatProps) {
   // --- State ---
   const [callState, setCallState] = useState<CallState>('calling')
@@ -127,7 +137,7 @@ export default function VoiceChat({
   // --- Refs ---
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const sessionIdRef = useRef(`voice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+  const sessionIdRef = useRef(sessionId ?? `voice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   const callTimerRef = useRef<NodeJS.Timeout | null>(null)
   const animFrameRef = useRef<number>(0)
   const transcriptContainerRef = useRef<HTMLDivElement>(null)
@@ -214,15 +224,28 @@ export default function VoiceChat({
         const reader = response.body?.getReader()
         if (!reader) throw new Error('No readable stream')
 
-        const chunks: ArrayBuffer[] = []
+        const chunks: Uint8Array[] = []
+        let totalBytes = 0
         let done = false
         while (!done) {
           const result = await reader.read()
           done = result.done
-          if (result.value) chunks.push(result.value.buffer as ArrayBuffer)
+          if (result.value) {
+            const chunk = new Uint8Array(result.value)
+            chunks.push(chunk)
+            totalBytes += chunk.byteLength
+          }
         }
+
+        const merged = new Uint8Array(totalBytes)
+        let offset = 0
+        for (const chunk of chunks) {
+          merged.set(chunk, offset)
+          offset += chunk.byteLength
+        }
+
         // Combine chunks into a single blob
-        const blob = new Blob(chunks, { type: 'audio/mpeg' })
+        const blob = new Blob([merged.buffer], { type: 'audio/mpeg' })
         const url = URL.createObjectURL(blob)
 
         return new Promise<void>((resolve) => {
@@ -230,6 +253,8 @@ export default function VoiceChat({
             audioRef.current = new Audio()
           }
           const audio = audioRef.current
+          audio.autoplay = true
+          audio.volume = 1
           audio.src = url
 
           audio.onended = () => {
@@ -315,7 +340,7 @@ export default function VoiceChat({
         // Add AI response to transcript
         setTranscript((prev) => [
           ...prev,
-          { role: 'ai', text: data.reply, timestamp: Date.now() },
+          { role: 'assistant', text: data.reply, timestamp: Date.now() },
         ])
 
         // Store for echo detection
@@ -528,8 +553,10 @@ export default function VoiceChat({
       console.log('[VoiceChat] Setting callState to connected')
       setCallState('connected')
 
-      // Send initial greeting request
-      const greetingMsg = 'A customer just called in. Greet them warmly and ask what they need. Keep it short — one or two sentences max, like a real phone pickup.'
+      // Send initial greeting request or handoff continuation prompt
+      const greetingMsg = handoffPrompt?.trim().length
+        ? handoffPrompt
+        : 'A customer just called in. Greet them warmly and ask what they need. Keep it short — one or two sentences max, like a real phone pickup.'
       console.log('[VoiceChat] About to call sendToAI with greeting message')
       console.log('[VoiceChat] Greeting message:', greetingMsg)
       
@@ -546,13 +573,19 @@ export default function VoiceChat({
       clearTimeout(connectTimer)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [callState])
+  }, [callState, handoffPrompt])
 
   // --- End call ---
   const endCall = useCallback(() => {
     isEndingRef.current = true
     setCallState('ending')
     shouldListenRef.current = false
+
+    const history: VoiceHistoryEntry[] = transcript.map((entry) => ({
+      role: entry.role,
+      content: entry.text,
+      timestamp: entry.timestamp,
+    }))
 
     // Stop everything
     try {
@@ -571,9 +604,9 @@ export default function VoiceChat({
 
     // Brief delay then callback
     setTimeout(() => {
-      onEndCall()
+      onEndCall(history)
     }, 800)
-  }, [onEndCall])
+  }, [onEndCall, transcript])
 
   // --- Toggle mute ---
   const toggleMute = useCallback(() => {

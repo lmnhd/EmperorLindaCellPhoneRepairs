@@ -75,12 +75,12 @@ function getLengthDirective(length: string, channel: AgentChannel): string {
   }
 
   if (length === 'short') {
-    return 'RESPONSE LENGTH: Keep replies concise and direct.'
+    return 'RESPONSE LENGTH: Keep replies to 1-2 short sentences.'
   }
   if (length === 'detailed') {
-    return 'RESPONSE LENGTH: Provide complete guidance while staying conversational.'
+    return 'RESPONSE LENGTH: Provide complete guidance in no more than 4 short sentences unless explicitly asked for detail.'
   }
-  return 'RESPONSE LENGTH: Keep replies concise but complete.'
+  return 'RESPONSE LENGTH: Keep replies to 2-3 short sentences max.'
 }
 
 function parseTemperature(value: string): number {
