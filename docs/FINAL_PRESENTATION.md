@@ -21,6 +21,71 @@ The QR code on the flyer links directly to the pitch page on the deployed app.
 
 ---
 
+## Phase 0 — Discovery (Required Before Any Build)
+
+The presentation layers are only as strong as the research behind them. Before writing a single line of code or copy, a structured discovery process must be completed. Its output drives everything else — the PoC features, the gap cards, the evidence quotes, and the ROI figures.
+
+### Discovery Inputs
+
+Research the target business across all available public surfaces:
+
+| Source | What to extract |
+|--------|----------------|
+| **Google Maps listing** | Star rating, review count, review recency, owner response rate, listed phone number, listed hours, photo quality |
+| **Google Maps reviews** | Exact quotes mentioning missed calls, slow replies, no-shows, confusion about services, location problems — note star rating for each |
+| **Website (if exists)** | Clarity of services, booking capability, mobile-friendliness, load speed, contact options |
+| **Social media** | Post frequency, engagement, last active date, response to DMs |
+| **Competitors (top 3)** | What they do better — hours listed, booking links, review volume, response time shown |
+| **Category context** | What customers in this category typically expect (urgency, pricing transparency, availability) |
+
+### Discovery Output — the Issues List
+
+Produce a ranked list of **bleeding-edge issues** — the specific, observable problems that are costing the business money or reputation right now. Each issue must be:
+
+- **Specific** — tied to a real observation ("3 reviews in 6 months mention no answer when calling")
+- **Rankable** — assigned a severity (Critical / High / Medium / Revenue Upside)
+- **Evidence-backed** — linked to at least one data point (a review quote, a missing feature, a competitor comparison)
+- **Actionable** — something software or process can fix
+
+Format the issues list as:
+
+```
+ISSUE [XX] — [Severity]
+Observation: [What was found, where]
+Evidence: "[Exact quote or data point]"
+Impact: [What it costs — revenue, reputation, time]
+```
+
+### Mapping: Issues → PoC Features → Pitch Gap Cards
+
+This is the critical chain. Every gap card on the pitch page must trace back to a discovery issue, and every PoC feature must trace back to a gap it solves.
+
+```
+Discovery Issue
+  └── PoC Feature Built to Address It
+        └── Pitch Page Gap Card (problem + fix + live CTA)
+```
+
+**Rules:**
+- Do not build features that don't map to a discovered issue
+- Do not put a gap card on the pitch page that wasn't discovered (no invented problems)
+- Every CTA on a gap card must link to the actual feature that was built — the prospect must be able to verify the fix is real in real time
+
+### Discovery → Presentation Traceability Table
+
+Before finalizing the pitch page, complete this table and keep it in `docs/`:
+
+```
+| Gap # | Discovery Issue | PoC Feature Built | Pitch Card Title | Live CTA |
+|-------|----------------|-------------------|-----------------|----------|
+| 01    | [issue summary] | [feature name]    | [card title]    | [link]   |
+| 02    | ...             | ...               | ...             | ...      |
+```
+
+This table is the audit trail. It proves the pitch is grounded in research, not assumptions. It also becomes the brief for future iterations — if a feature wasn't built yet, the card CTA links to the closest live proof instead.
+
+---
+
 ## Non-Negotiable Output Format
 1. Deliver exactly **one HTML file** named `presentation_restored.html` at project root (unless user requests a different filename).
 2. The presentation is exactly **one half-sheet flyer**.
@@ -364,4 +429,7 @@ Must pass all before finalizing:
 - [ ] QR on paper flyer resolves to `/pitch` on deployed domain
 - [ ] All content defined as typed data arrays, not inline JSX strings
 - [ ] No `any` types in TypeScript
+- [ ] Discovery → Presentation traceability table completed and saved in `docs/`
+- [ ] Every gap card traces to a real discovery issue (no invented problems)
+- [ ] Every gap CTA links to the actual built feature, not a placeholder
 
