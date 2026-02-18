@@ -424,10 +424,62 @@ export default function PitchPage() {
       </section>
 
 
+      {/* ═══ THE COCKPIT ═══════════════════════════════════════════════════ */}
+      <section className="bg-emperor-slate/30 py-24 px-6 sm:px-16 lg:px-28">
+        <div className="max-w-5xl mx-auto">
+          <p className="font-mono text-xs tracking-widest uppercase text-emperor-gold/60 mb-3">Section 05 — The Cockpit</p>
+          <h2 className="font-display text-4xl sm:text-5xl text-emperor-cream mb-3">
+            Your real advantage: <em className="text-emperor-gold italic">Brandon&apos;s Cockpit.</em>
+          </h2>
+          <p className="text-emperor-cream/45 text-sm max-w-2xl leading-relaxed mb-10">
+            This is where LINDA stops being a cool demo and becomes a daily operating system. 
+            One screen gives Brandon full control over the business day while the AI handles the front desk.
+          </p>
+
+          <div className="grid sm:grid-cols-2 gap-4 mb-8">
+            {[
+              {
+                title: 'Live Status Control',
+                desc: 'Flip between Working, Gym, Driving, Break, and After Hours so LINDA responds with the right context instantly.',
+              },
+              {
+                title: 'Lead Visibility',
+                desc: 'See every incoming lead, booking, and conversation in one place instead of chasing missed calls and texts.',
+              },
+              {
+                title: 'Voice + Persona Tuning',
+                desc: 'Adjust tone, voice, and behavior so responses sound aligned with Brandon and the brand.',
+              },
+              {
+                title: 'Operator Simplicity',
+                desc: 'No technical workflow. Open the Cockpit, update status, keep repairing phones — LINDA handles the rest.',
+              },
+            ].map((item) => (
+              <div key={item.title} className="p-5 border border-white/10 rounded bg-emperor-black/40">
+                <p className="font-sans font-semibold text-emperor-cream mb-1.5">{item.title}</p>
+                <p className="text-sm text-emperor-cream/50 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Link href="/dashboard" className="inline-flex items-center gap-2 font-sans font-bold text-sm px-5 py-3 rounded bg-emperor-gold text-emperor-black hover:bg-emperor-gold-light transition-colors">
+              <ArrowRight size={15} />
+              Open Brandon&apos;s Cockpit
+            </Link>
+            <Link href="/features#dashboard" className="inline-flex items-center gap-2 font-sans font-semibold text-sm px-5 py-3 rounded bg-white/5 text-emperor-cream/65 border border-white/10 hover:border-white/25 hover:text-emperor-cream transition-colors">
+              <ArrowRight size={15} />
+              See Cockpit Features
+            </Link>
+          </div>
+        </div>
+      </section>
+
+
       {/* ═══ CLOSING ═════════════════════════════════════════════════════════ */}
       <section className="bg-emperor-charcoal py-28 px-6 sm:px-16 lg:px-28 text-center">
         <div className="max-w-2xl mx-auto">
-          <p className="font-mono text-xs tracking-widest uppercase text-emperor-gold/60 mb-6">Section 05 — Next Steps</p>
+          <p className="font-mono text-xs tracking-widest uppercase text-emperor-gold/60 mb-6">Section 06 — Next Steps</p>
           <h2 className="font-display text-4xl sm:text-6xl text-emperor-cream leading-none mb-5">
             The software is{' '}
             <em className="text-emperor-gold italic">built.</em>
