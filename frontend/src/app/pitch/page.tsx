@@ -459,22 +459,29 @@ export default function PitchPage() {
 
 
       {/* ═══ FOOTER ══════════════════════════════════════════════════════════ */}
-      <footer className="border-t border-white/8 px-6 sm:px-16 lg:px-28 py-5 flex flex-wrap justify-between items-center gap-3">
+      <footer className="border-t border-white/8 px-6 sm:px-16 lg:px-28 py-8 flex flex-wrap justify-between items-center gap-6">
         <span className="font-mono text-xs tracking-widest uppercase text-emperor-cream/25">
           EmperorLinda Cell Phone Repairs — Digital Gap Report · Feb 2026
         </span>
-        <nav className="flex gap-6">
-          {[
-            { label: 'Linda', href: '/' },
-            { label: 'Features', href: '/features' },
-            { label: 'Dashboard', href: '/dashboard' },
-            { label: 'Voice Chat', href: '/' },
-          ].map(n => (
-            <Link key={n.label} href={n.href} className="font-mono text-xs tracking-widest uppercase text-emperor-cream/30 hover:text-emperor-gold transition-colors">
-              {n.label}
-            </Link>
-          ))}
-        </nav>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="flex flex-col gap-0.5">
+            <span className="font-mono text-[10px] tracking-widest uppercase text-emperor-gold/50">Built by Nate · Halimede</span>
+            <a href="tel:+19042520927" className="font-mono text-sm font-bold text-emperor-cream hover:text-emperor-gold transition-colors">
+              (904) 252-0927
+            </a>
+          </div>
+          <nav className="flex gap-6">
+            {[
+              { label: 'Linda', href: '/' },
+              { label: 'Features', href: '/features' },
+              { label: 'Dashboard', href: '/dashboard' },
+            ].map(n => (
+              <Link key={n.label} href={n.href} className="font-mono text-xs tracking-widest uppercase text-emperor-cream/30 hover:text-emperor-gold transition-colors">
+                {n.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
       </footer>
 
     </main>

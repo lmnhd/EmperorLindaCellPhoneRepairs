@@ -129,10 +129,7 @@ export default function LandingPage() {
             <Link href="/features" className="hover:text-emperor-gold/60 transition-colors">
               Features
             </Link>
-            <div className="h-3 w-px bg-emperor-cream/10" />
-            <span className="font-bold text-white">
-              904-252-0927
-            </span>
+
           </div>
         </div>
       </footer>
