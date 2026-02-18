@@ -131,7 +131,7 @@ export default function LandingPage() {
             </Link>
             <div className="h-3 w-px bg-emperor-cream/10" />
             <span className="font-bold text-white">
-              (904) 650-3007
+              904-252-0927
             </span>
           </div>
         </div>
