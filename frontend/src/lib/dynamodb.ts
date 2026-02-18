@@ -57,6 +57,21 @@ export interface BrandonState {
   ai_answers_calls?: boolean
   ai_answers_sms?: boolean
   auto_upsell?: boolean
+  agent_shared_tone?: string
+  agent_shared_response_length?: string
+  agent_shared_base_prompt_override?: string
+  agent_shared_additional_rules?: string
+  agent_shared_contextual_info?: string
+  agent_shared_escalation_threshold?: string
+  agent_shared_full_override?: string
+  agent_chat_channel_addendum?: string
+  agent_chat_channel_rules?: string
+  agent_chat_full_override?: string
+  agent_chat_temperature?: string
+  agent_phone_channel_addendum?: string
+  agent_phone_channel_rules?: string
+  agent_phone_full_override?: string
+  agent_phone_temperature?: string
   updated_at: number
 }
 
@@ -127,7 +142,35 @@ export async function getBrandonState(): Promise<BrandonState> {
 }
 
 export async function updateBrandonState(
-  updates: Partial<Pick<BrandonState, 'status' | 'location' | 'notes' | 'special_info' | 'voice' | 'assistant_name' | 'persona' | 'greeting' | 'max_discount' | 'ai_answers_calls' | 'ai_answers_sms' | 'auto_upsell'>>
+  updates: Partial<Pick<BrandonState,
+    | 'status'
+    | 'location'
+    | 'notes'
+    | 'special_info'
+    | 'voice'
+    | 'assistant_name'
+    | 'persona'
+    | 'greeting'
+    | 'max_discount'
+    | 'ai_answers_calls'
+    | 'ai_answers_sms'
+    | 'auto_upsell'
+    | 'agent_shared_tone'
+    | 'agent_shared_response_length'
+    | 'agent_shared_base_prompt_override'
+    | 'agent_shared_additional_rules'
+    | 'agent_shared_contextual_info'
+    | 'agent_shared_escalation_threshold'
+    | 'agent_shared_full_override'
+    | 'agent_chat_channel_addendum'
+    | 'agent_chat_channel_rules'
+    | 'agent_chat_full_override'
+    | 'agent_chat_temperature'
+    | 'agent_phone_channel_addendum'
+    | 'agent_phone_channel_rules'
+    | 'agent_phone_full_override'
+    | 'agent_phone_temperature'
+  >>
 ): Promise<BrandonState> {
   // Fetch current state first (merge approach)
   const current = await getBrandonState()
@@ -146,6 +189,21 @@ export async function updateBrandonState(
     ai_answers_calls: updates.ai_answers_calls ?? current.ai_answers_calls,
     ai_answers_sms: updates.ai_answers_sms ?? current.ai_answers_sms,
     auto_upsell: updates.auto_upsell ?? current.auto_upsell,
+    agent_shared_tone: updates.agent_shared_tone ?? current.agent_shared_tone,
+    agent_shared_response_length: updates.agent_shared_response_length ?? current.agent_shared_response_length,
+    agent_shared_base_prompt_override: updates.agent_shared_base_prompt_override ?? current.agent_shared_base_prompt_override,
+    agent_shared_additional_rules: updates.agent_shared_additional_rules ?? current.agent_shared_additional_rules,
+    agent_shared_contextual_info: updates.agent_shared_contextual_info ?? current.agent_shared_contextual_info,
+    agent_shared_escalation_threshold: updates.agent_shared_escalation_threshold ?? current.agent_shared_escalation_threshold,
+    agent_shared_full_override: updates.agent_shared_full_override ?? current.agent_shared_full_override,
+    agent_chat_channel_addendum: updates.agent_chat_channel_addendum ?? current.agent_chat_channel_addendum,
+    agent_chat_channel_rules: updates.agent_chat_channel_rules ?? current.agent_chat_channel_rules,
+    agent_chat_full_override: updates.agent_chat_full_override ?? current.agent_chat_full_override,
+    agent_chat_temperature: updates.agent_chat_temperature ?? current.agent_chat_temperature,
+    agent_phone_channel_addendum: updates.agent_phone_channel_addendum ?? current.agent_phone_channel_addendum,
+    agent_phone_channel_rules: updates.agent_phone_channel_rules ?? current.agent_phone_channel_rules,
+    agent_phone_full_override: updates.agent_phone_full_override ?? current.agent_phone_full_override,
+    agent_phone_temperature: updates.agent_phone_temperature ?? current.agent_phone_temperature,
     updated_at: Math.floor(Date.now() / 1000),
   }
 

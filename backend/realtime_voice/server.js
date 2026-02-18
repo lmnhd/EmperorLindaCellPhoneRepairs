@@ -37,7 +37,7 @@ if (!OPENAI_API_KEY) {
 const app = Fastify({ logger: true })
 await app.register(fastifyWebsocket)
 
-const CONFIG_TTL_MS = 5 * 60 * 1000
+const CONFIG_TTL_MS = 30 * 1000 // 30 seconds — keeps changes from the dashboard visible quickly
 let cachedConfig = null
 let cachedConfigAt = 0
 
@@ -45,6 +45,7 @@ function buildFallbackConfig() {
   return {
     assistantName: 'LINDA',
     voice: DEFAULT_VOICE,
+    greeting: null,
     systemPrompt: [
       'You are LINDA, the phone assistant for EmperorLinda Cell Phone Repairs.',
       'Speak naturally, concise, and friendly.',
@@ -86,7 +87,7 @@ async function loadRuntimeConfig() {
   }
 
   try {
-    const stateRes = await fetch(`${FRONTEND_URL}/api/state`, {
+    const stateRes = await fetch(`${FRONTEND_URL}/api/agent-config/phone`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     })
@@ -96,33 +97,25 @@ async function loadRuntimeConfig() {
     }
 
     const payload = await stateRes.json()
-    const state = payload?.state ?? {}
 
-    const assistantName = typeof state.assistant_name === 'string' && state.assistant_name.trim().length > 0
-      ? state.assistant_name.trim()
+    const assistantName = typeof payload?.assistant_name === 'string' && payload.assistant_name.trim().length > 0
+      ? payload.assistant_name.trim()
       : 'LINDA'
 
-    const persona = typeof state.persona === 'string' ? state.persona : 'professional'
-    const notes = typeof state.notes === 'string' ? state.notes : ''
-    const specialInfo = typeof state.special_info === 'string' ? state.special_info : ''
+    const systemPrompt = typeof payload?.system_prompt === 'string' && payload.system_prompt.trim().length > 0
+      ? payload.system_prompt
+      : buildFallbackConfig().systemPrompt
 
-    const systemPrompt = [
-      `You are ${assistantName}, the live phone assistant for EmperorLinda Cell Phone Repairs.`,
-      `Persona: ${persona}.`,
-      notes ? `Owner notes: ${notes}` : '',
-      specialInfo ? `Current special info: ${specialInfo}` : '',
-      'Keep responses brief and helpful in live phone format.',
-      'If you need missing information, ask one direct question.',
-      'Never mention internal systems or implementation details.',
-    ]
-      .filter(Boolean)
-      .join(' ')
+    const greeting = typeof payload?.greeting === 'string' && payload.greeting.trim().length > 0
+      ? payload.greeting.trim()
+      : null
 
     const resolvedConfig = {
       assistantName,
-      voice: sanitizeVoice(state.voice),
+      voice: sanitizeVoice(payload?.voice),
       systemPrompt,
-      source: 'state-api',
+      greeting,
+      source: typeof payload?.source === 'string' ? payload.source : 'agent-config-phone',
     }
 
     cachedConfig = resolvedConfig
@@ -155,12 +148,17 @@ function sendSessionUpdate(openAiWs, config) {
   openAiWs.send(JSON.stringify(sessionUpdate))
 }
 
-function sendInitialGreeting(openAiWs, assistantName) {
+function sendInitialGreeting(openAiWs, assistantName, greeting) {
+  // Use the greeting saved in the dashboard if present; fall back to a generic opener
+  const instructions = greeting
+    ? `Say EXACTLY this greeting, word for word: "${greeting}"`
+    : `Greet the caller as ${assistantName} in one short, friendly sentence and ask how you can help.`
+
   const greetingRequest = {
     type: 'response.create',
     response: {
       modalities: ['audio', 'text'],
-      instructions: `Greet the caller as ${assistantName} in one short sentence and ask how you can help.`,
+      instructions,
     },
   }
 
@@ -222,6 +220,7 @@ app.register(async (fastify) => {
     let lastAssistantItemId = null
     let sessionReady = false
     let pendingGreetingAssistantName = null
+    let pendingGreeting = null
 
     const openAiWs = new WebSocket(`wss://api.openai.com/v1/realtime?model=${encodeURIComponent(OPENAI_REALTIME_MODEL)}`, {
       headers: {
@@ -234,6 +233,7 @@ app.register(async (fastify) => {
       const config = await loadRuntimeConfig()
       app.log.info({ source: config.source, voice: config.voice }, 'OpenAI realtime connected')
       pendingGreetingAssistantName = config.assistantName
+      pendingGreeting = config.greeting ?? null
       sendSessionUpdate(openAiWs, config)
     })
 
@@ -245,8 +245,9 @@ app.register(async (fastify) => {
           sessionReady = true
           app.log.info({ streamSid }, 'OpenAI session updated and ready')
           if (pendingGreetingAssistantName) {
-            sendInitialGreeting(openAiWs, pendingGreetingAssistantName)
+            sendInitialGreeting(openAiWs, pendingGreetingAssistantName, pendingGreeting)
             pendingGreetingAssistantName = null
+            pendingGreeting = null
           }
           return
         }
@@ -280,15 +281,7 @@ app.register(async (fastify) => {
 
         if (event.type === 'input_audio_buffer.speech_started' && responseStartTimestamp !== null) {
           if (lastAssistantItemId) {
-            const elapsedMs = latestMediaTimestamp - responseStartTimestamp
-            openAiWs.send(
-              JSON.stringify({
-                type: 'conversation.item.truncate',
-                item_id: lastAssistantItemId,
-                content_index: 0,
-                audio_end_ms: Math.max(0, elapsedMs),
-              }),
-            )
+            openAiWs.send(JSON.stringify({ type: 'response.cancel' }))
           }
 
           twilioSocket.send(JSON.stringify({ event: 'clear', streamSid }))
