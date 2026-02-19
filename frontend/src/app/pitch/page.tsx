@@ -82,6 +82,20 @@ const GAPS: Gap[] = [
   {
     num: '03',
     badge: 'high',
+    badgeLabel: '🟠 High · Control Gap',
+    title: 'No real-time command center for Brandon while he works.',
+    problem:
+      'Even if AI handles inbound leads, Brandon still needs a fast way to steer the day: set current status, monitor active leads, and tune how LINDA speaks. Without a simple command surface, context drifts and opportunities get missed while he is focused on repairs.',
+    solution:
+      'Brandon\'s Cockpit is the control layer. In one screen, he can switch modes (Working, Gym, Driving, After Hours), monitor lead flow, and keep LINDA aligned with the business in real time. That means fewer missed opportunities and tighter day-to-day operations.',
+    ctas: [
+      { label: 'Open Brandon\'s Cockpit', href: '/dashboard', variant: 'primary' },
+      { label: 'See Cockpit Features', href: '/features#dashboard', variant: 'secondary' },
+    ],
+  },
+  {
+    num: '04',
+    badge: 'high',
     badgeLabel: '🟠 High · Reputation Risk',
     title: 'Slow text replies are getting flagged in reviews.',
     problem:
@@ -94,7 +108,7 @@ const GAPS: Gap[] = [
     ],
   },
   {
-    num: '04',
+    num: '05',
     badge: 'high',
     badgeLabel: '🟠 High · Conversion Leak',
     title: 'No upsell conversation is happening at point-of-booking.',
@@ -107,7 +121,7 @@ const GAPS: Gap[] = [
     ],
   },
   {
-    num: '05',
+    num: '06',
     badge: 'medium',
     badgeLabel: '🔵 Medium · Operational',
     title: "Customers can't self-serve 'Mobile or Shop?' — they text to ask.",
@@ -121,7 +135,7 @@ const GAPS: Gap[] = [
     ],
   },
   {
-    num: '06',
+    num: '07',
     badge: 'revenue',
     badgeLabel: '🟢 Revenue Upside · After Hours',
     title: "Your business closes at night. Your competitors' don't.",
@@ -193,7 +207,7 @@ export default function PitchPage() {
     <main className="min-h-screen bg-emperor-black text-emperor-cream font-body">
 
       {/* ═══ TOP BAR ═════════════════════════════════════════════════════════ */}
-      <header className="border-b border-white/8 px-6 sm:px-16 lg:px-28 py-4 flex items-center justify-between">
+      <header className="flex items-center justify-between px-6 py-4 border-b border-white/8 sm:px-16 lg:px-28">
         <span className="font-mono text-xs tracking-widest uppercase text-emperor-gold/70">
           EmperorLinda · Gaps &amp; Fixes
         </span>
@@ -204,7 +218,7 @@ export default function PitchPage() {
 
 
       {/* ═══ THE GAPS ════════════════════════════════════════════════════════ */}
-      <section className="px-6 sm:px-16 lg:px-28 pt-10 pb-16 max-w-5xl mx-auto">
+      <section className="max-w-5xl px-6 pt-10 pb-16 mx-auto sm:px-16 lg:px-28">
 
         <h1 className="font-display text-5xl sm:text-7xl lg:text-8xl leading-[1.05] text-emperor-cream mb-14">
           Here&rsquo;s what I{' '}
@@ -220,7 +234,7 @@ export default function PitchPage() {
             <div key={gap.num} className="group py-10 grid grid-cols-[3rem_1fr] gap-x-8">
 
               {/* Number */}
-              <span className="font-display text-5xl leading-none text-white/15 group-hover:text-emperor-gold transition-colors duration-300 pt-1 select-none">
+              <span className="pt-1 text-5xl leading-none transition-colors duration-300 select-none font-display text-white/15 group-hover:text-emperor-gold">
                 {gap.num}
               </span>
 
@@ -229,17 +243,17 @@ export default function PitchPage() {
                 <span className={`inline-block font-mono text-xs tracking-widest uppercase px-2.5 py-1 rounded-sm mb-3 ${BADGE_STYLES[gap.badge]}`}>
                   {gap.badgeLabel}
                 </span>
-                <h3 className="font-sans font-bold text-xl text-emperor-cream mb-3 leading-snug">
+                <h3 className="mb-3 font-sans text-xl font-bold leading-snug text-emperor-cream">
                   {gap.title}
                 </h3>
-                <p className="text-emperor-cream/45 text-sm leading-relaxed max-w-2xl mb-5">
+                <p className="max-w-2xl mb-5 text-sm leading-relaxed text-emperor-cream/45">
                   {gap.problem}
                 </p>
 
                 {/* Solution block */}
-                <div className="border-l-2 border-emperor-gold pl-4 py-2 bg-emperor-gold/5 rounded-r mb-5">
-                  <p className="font-mono text-xs tracking-widest uppercase text-emperor-gold mb-2">✦ The Fix</p>
-                  <p className="text-emperor-cream/80 text-sm leading-relaxed">{gap.solution}</p>
+                <div className="py-2 pl-4 mb-5 border-l-2 rounded-r border-emperor-gold bg-emperor-gold/5">
+                  <p className="mb-2 font-mono text-xs tracking-widest uppercase text-emperor-gold">✦ The Fix</p>
+                  <p className="text-sm leading-relaxed text-emperor-cream/80">{gap.solution}</p>
                 </div>
 
                 {/* CTAs */}
@@ -254,7 +268,7 @@ export default function PitchPage() {
                         <Link
                           key={cta.label}
                           href={cta.href}
-                          className="group/qr inline-flex items-center gap-3 rounded-lg border border-emperor-gold/25 bg-white/5 px-3 py-2 hover:border-emperor-gold/55 hover:bg-white/10 transition-all duration-150"
+                          className="inline-flex items-center gap-3 px-3 py-2 transition-all duration-150 border rounded-lg group/qr border-emperor-gold/25 bg-white/5 hover:border-emperor-gold/55 hover:bg-white/10"
                         >
                           <span
                             aria-hidden="true"
@@ -309,26 +323,26 @@ export default function PitchPage() {
 
 
       {/* ═══ EVIDENCE ════════════════════════════════════════════════════════ */}
-      <section className="bg-emperor-charcoal py-20 px-6 sm:px-16 lg:px-28">
+      <section className="px-6 py-20 bg-emperor-charcoal sm:px-16 lg:px-28">
         <div className="max-w-5xl mx-auto">
-          <p className="font-mono text-xs tracking-widest uppercase text-emperor-gold/60 mb-3">Section 02 — The Evidence</p>
-          <h2 className="font-display text-4xl sm:text-5xl text-emperor-cream mb-2">
+          <p className="mb-3 font-mono text-xs tracking-widest uppercase text-emperor-gold/60">Section 02 — The Evidence</p>
+          <h2 className="mb-2 text-4xl font-display sm:text-5xl text-emperor-cream">
             Real words.{' '}
-            <em className="text-emperor-gold italic">Real customers.</em>
+            <em className="italic text-emperor-gold">Real customers.</em>
           </h2>
-          <p className="text-emperor-cream/40 text-sm mb-10">This is what the gaps look like in the wild.</p>
+          <p className="mb-10 text-sm text-emperor-cream/40">This is what the gaps look like in the wild.</p>
 
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             {QUOTES.map((q) => (
-              <div key={q.meta} className="p-5 border border-white/8 rounded bg-emperor-black/50">
+              <div key={q.meta} className="p-5 border rounded border-white/8 bg-emperor-black/50">
                 <StarRow count={q.stars} />
-                <p className="font-display italic text-emperor-cream/80 text-base leading-relaxed mb-3">{q.text}</p>
+                <p className="mb-3 text-base italic leading-relaxed font-display text-emperor-cream/80">{q.text}</p>
                 <p className="font-mono text-xs tracking-widest uppercase text-emperor-gold/50">{q.meta}</p>
               </div>
             ))}
           </div>
 
-          <blockquote className="mt-10 border-l-4 border-emperor-gold pl-5 py-1 text-emperor-gold font-display italic text-lg leading-relaxed">
+          <blockquote className="py-1 pl-5 mt-10 text-lg italic leading-relaxed border-l-4 border-emperor-gold text-emperor-gold font-display">
             "Brandon is incredible when you get him." — That 5-star technician has a 3-star 
             discoverability problem. That's not a skills gap. That's a systems gap.
           </blockquote>
@@ -336,107 +350,19 @@ export default function PitchPage() {
       </section>
 
 
-      {/* ═══ ROI ═════════════════════════════════════════════════════════════ */}
-      <section className="bg-emperor-slate/30 py-24 px-6 sm:px-16 lg:px-28">
-        <div className="max-w-5xl mx-auto">
-          <p className="font-mono text-xs tracking-widest uppercase text-emperor-gold/60 mb-3">Section 03 — The Math</p>
-          <h2 className="font-display text-4xl sm:text-5xl text-emperor-cream mb-3">
-            What the gaps cost <em className="text-accent-red italic">annually.</em>
-          </h2>
-          <p className="text-emperor-cream/45 text-sm max-w-xl leading-relaxed mb-12">
-            Conservative estimates. Actual bleed is likely higher given Jacksonville competition density.
-          </p>
-
-          {/* Bleed cards */}
-          <div className="flex flex-wrap gap-4 mb-12">
-            {[
-              { n: '$12,480', l: 'Annual revenue from missed jobs alone\n(3 missed leads/wk × $80 avg profit × 52 wks)' },
-              { n: '260 hrs', l: 'Annual time lost to logistics texts & unanswered calls\n(5 hrs/week of preventable admin)' },
-              { n: '1–3 ★', l: 'Review damage compounding each week a slow-response event happens' },
-            ].map(c => (
-              <div key={c.n} className="flex-1 min-w-[200px] p-5 border border-white/10 rounded bg-emperor-black/50">
-                <div className="font-display text-4xl text-accent-red mb-2 leading-none">{c.n}</div>
-                <p className="text-emperor-cream/45 text-xs leading-relaxed whitespace-pre-line">{c.l}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b-2 border-white/10">
-                  <th className="font-mono text-xs tracking-widest uppercase text-emperor-cream/40 text-left py-3 pr-6">Metric</th>
-                  <th className="font-mono text-xs tracking-widest uppercase text-accent-red/70 text-left py-3 pr-6">Before LINDA</th>
-                  <th className="font-mono text-xs tracking-widest uppercase text-accent-emerald/70 text-left py-3">With LINDA</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/6">
-                {ROI_ROWS.map(r => (
-                  <tr key={r.metric}>
-                    <td className="py-3.5 pr-6 text-emperor-cream/60">{r.metric}</td>
-                    <td className="py-3.5 pr-6 text-accent-red font-semibold">{r.before}</td>
-                    <td className="py-3.5 text-accent-emerald font-semibold">{r.after}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-
-      {/* ═══ WHAT IS LINDA ═══════════════════════════════════════════════════ */}
-      <section className="py-24 px-6 sm:px-16 lg:px-28">
-        <div className="max-w-5xl mx-auto">
-          <p className="font-mono text-xs tracking-widest uppercase text-emperor-gold/60 mb-3">Section 04 — The System</p>
-          <h2 className="font-display text-4xl sm:text-5xl text-emperor-cream mb-3">
-            What <em className="text-emperor-gold italic">LINDA</em> actually is.
-          </h2>
-          <p className="text-emperor-cream/45 text-sm max-w-xl leading-relaxed mb-12">
-            Not a chatbot. Not a phone tree. LINDA is a full front-desk operation 
-            running on your existing number — context-aware, booking-capable, always on.
-          </p>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {CAPABILITIES.map(c => (
-              <div key={c.title} className="p-5 border border-white/8 rounded bg-emperor-charcoal/60 hover:border-emperor-gold/30 transition-colors duration-200">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-4 ${c.bg} text-emperor-gold`}>
-                  {c.icon}
-                </div>
-                <h3 className="font-sans font-bold text-base text-emperor-cream mb-1.5">{c.title}</h3>
-                <p className="text-emperor-cream/45 text-sm leading-relaxed">{c.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/features" className="inline-flex items-center gap-2 font-sans font-semibold text-sm px-4 py-2.5 rounded bg-emperor-gold/10 text-emperor-gold border border-emperor-gold/30 hover:bg-emperor-gold/20 transition-all">
-              <ArrowRight size={14} />
-              See all features in detail
-            </Link>
-            <Link href="/dashboard" className="inline-flex items-center gap-2 font-sans font-semibold text-sm px-4 py-2.5 rounded bg-white/5 text-emperor-cream/60 border border-white/10 hover:border-white/25 hover:text-emperor-cream transition-all">
-              <ArrowRight size={14} />
-              Explore the Dashboard
-            </Link>
-          </div>
-        </div>
-      </section>
-
-
       {/* ═══ THE COCKPIT ═══════════════════════════════════════════════════ */}
-      <section className="bg-emperor-slate/30 py-24 px-6 sm:px-16 lg:px-28">
+      <section className="px-6 py-24 bg-emperor-slate/30 sm:px-16 lg:px-28">
         <div className="max-w-5xl mx-auto">
-          <p className="font-mono text-xs tracking-widest uppercase text-emperor-gold/60 mb-3">Section 05 — The Cockpit</p>
-          <h2 className="font-display text-4xl sm:text-5xl text-emperor-cream mb-3">
-            Your real advantage: <em className="text-emperor-gold italic">Brandon&apos;s Cockpit.</em>
+          <p className="mb-3 font-mono text-xs tracking-widest uppercase text-emperor-gold/60">Section 03 — The Cockpit</p>
+          <h2 className="mb-3 text-4xl font-display sm:text-5xl text-emperor-cream">
+            Your real advantage: <em className="italic text-emperor-gold">Brandon&apos;s Cockpit.</em>
           </h2>
-          <p className="text-emperor-cream/45 text-sm max-w-2xl leading-relaxed mb-10">
-            This is where LINDA stops being a cool demo and becomes a daily operating system. 
+          <p className="max-w-2xl mb-10 text-sm leading-relaxed text-emperor-cream/45">
+            This is where LINDA stops being a cool demo and becomes a daily operating system.
             One screen gives Brandon full control over the business day while the AI handles the front desk.
           </p>
 
-          <div className="grid sm:grid-cols-2 gap-4 mb-8">
+          <div className="grid gap-4 mb-8 sm:grid-cols-2">
             {[
               {
                 title: 'Live Status Control',
@@ -455,19 +381,19 @@ export default function PitchPage() {
                 desc: 'No technical workflow. Open the Cockpit, update status, keep repairing phones — LINDA handles the rest.',
               },
             ].map((item) => (
-              <div key={item.title} className="p-5 border border-white/10 rounded bg-emperor-black/40">
+              <div key={item.title} className="p-5 border rounded border-white/10 bg-emperor-black/40">
                 <p className="font-sans font-semibold text-emperor-cream mb-1.5">{item.title}</p>
-                <p className="text-sm text-emperor-cream/50 leading-relaxed">{item.desc}</p>
+                <p className="text-sm leading-relaxed text-emperor-cream/50">{item.desc}</p>
               </div>
             ))}
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link href="/dashboard" className="inline-flex items-center gap-2 font-sans font-bold text-sm px-5 py-3 rounded bg-emperor-gold text-emperor-black hover:bg-emperor-gold-light transition-colors">
+            <Link href="/dashboard" className="inline-flex items-center gap-2 px-5 py-3 font-sans text-sm font-bold transition-colors rounded bg-emperor-gold text-emperor-black hover:bg-emperor-gold-light">
               <ArrowRight size={15} />
               Open Brandon&apos;s Cockpit
             </Link>
-            <Link href="/features#dashboard" className="inline-flex items-center gap-2 font-sans font-semibold text-sm px-5 py-3 rounded bg-white/5 text-emperor-cream/65 border border-white/10 hover:border-white/25 hover:text-emperor-cream transition-colors">
+            <Link href="/features#dashboard" className="inline-flex items-center gap-2 px-5 py-3 font-sans text-sm font-semibold transition-colors border rounded bg-white/5 text-emperor-cream/65 border-white/10 hover:border-white/25 hover:text-emperor-cream">
               <ArrowRight size={15} />
               See Cockpit Features
             </Link>
@@ -476,21 +402,107 @@ export default function PitchPage() {
       </section>
 
 
+      {/* ═══ ROI ═════════════════════════════════════════════════════════════ */}
+      <section className="px-6 py-24 bg-emperor-slate/30 sm:px-16 lg:px-28">
+        <div className="max-w-5xl mx-auto">
+          <p className="mb-3 font-mono text-xs tracking-widest uppercase text-emperor-gold/60">Section 04 — The Math</p>
+          <h2 className="mb-3 text-4xl font-display sm:text-5xl text-emperor-cream">
+            What the gaps cost <em className="italic text-accent-red">annually.</em>
+          </h2>
+          <p className="max-w-xl mb-12 text-sm leading-relaxed text-emperor-cream/45">
+            Conservative estimates. Actual bleed is likely higher given Jacksonville competition density.
+          </p>
+
+          {/* Bleed cards */}
+          <div className="flex flex-wrap gap-4 mb-12">
+            {[
+              { n: '$12,480', l: 'Annual revenue from missed jobs alone\n(3 missed leads/wk × $80 avg profit × 52 wks)' },
+              { n: '260 hrs', l: 'Annual time lost to logistics texts & unanswered calls\n(5 hrs/week of preventable admin)' },
+              { n: '1–3 ★', l: 'Review damage compounding each week a slow-response event happens' },
+            ].map(c => (
+              <div key={c.n} className="flex-1 min-w-[200px] p-5 border border-white/10 rounded bg-emperor-black/50">
+                <div className="mb-2 text-4xl leading-none font-display text-accent-red">{c.n}</div>
+                <p className="text-xs leading-relaxed whitespace-pre-line text-emperor-cream/45">{c.l}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b-2 border-white/10">
+                  <th className="py-3 pr-6 font-mono text-xs tracking-widest text-left uppercase text-emperor-cream/40">Metric</th>
+                  <th className="py-3 pr-6 font-mono text-xs tracking-widest text-left uppercase text-accent-red/70">Before LINDA</th>
+                  <th className="py-3 font-mono text-xs tracking-widest text-left uppercase text-accent-emerald/70">With LINDA</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/6">
+                {ROI_ROWS.map(r => (
+                  <tr key={r.metric}>
+                    <td className="py-3.5 pr-6 text-emperor-cream/60">{r.metric}</td>
+                    <td className="py-3.5 pr-6 text-accent-red font-semibold">{r.before}</td>
+                    <td className="py-3.5 text-accent-emerald font-semibold">{r.after}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+
+      {/* ═══ WHAT IS LINDA ═══════════════════════════════════════════════════ */}
+      <section className="px-6 py-24 sm:px-16 lg:px-28">
+        <div className="max-w-5xl mx-auto">
+          <p className="mb-3 font-mono text-xs tracking-widest uppercase text-emperor-gold/60">Section 05 — The System</p>
+          <h2 className="mb-3 text-4xl font-display sm:text-5xl text-emperor-cream">
+            What <em className="italic text-emperor-gold">LINDA</em> actually is.
+          </h2>
+          <p className="max-w-xl mb-12 text-sm leading-relaxed text-emperor-cream/45">
+            Not a chatbot. Not a phone tree. LINDA is a full front-desk operation 
+            running on your existing number — context-aware, booking-capable, always on.
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {CAPABILITIES.map(c => (
+              <div key={c.title} className="p-5 transition-colors duration-200 border rounded border-white/8 bg-emperor-charcoal/60 hover:border-emperor-gold/30">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-4 ${c.bg} text-emperor-gold`}>
+                  {c.icon}
+                </div>
+                <h3 className="font-sans font-bold text-base text-emperor-cream mb-1.5">{c.title}</h3>
+                <p className="text-sm leading-relaxed text-emperor-cream/45">{c.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-3 mt-8">
+            <Link href="/features" className="inline-flex items-center gap-2 font-sans font-semibold text-sm px-4 py-2.5 rounded bg-emperor-gold/10 text-emperor-gold border border-emperor-gold/30 hover:bg-emperor-gold/20 transition-all">
+              <ArrowRight size={14} />
+              See all features in detail
+            </Link>
+            <Link href="/dashboard" className="inline-flex items-center gap-2 font-sans font-semibold text-sm px-4 py-2.5 rounded bg-white/5 text-emperor-cream/60 border border-white/10 hover:border-white/25 hover:text-emperor-cream transition-all">
+              <ArrowRight size={14} />
+              Explore the Dashboard
+            </Link>
+          </div>
+        </div>
+      </section>
       {/* ═══ CLOSING ═════════════════════════════════════════════════════════ */}
-      <section className="bg-emperor-charcoal py-28 px-6 sm:px-16 lg:px-28 text-center">
+      <section className="px-6 text-center bg-emperor-charcoal py-28 sm:px-16 lg:px-28">
         <div className="max-w-2xl mx-auto">
-          <p className="font-mono text-xs tracking-widest uppercase text-emperor-gold/60 mb-6">Section 06 — Next Steps</p>
-          <h2 className="font-display text-4xl sm:text-6xl text-emperor-cream leading-none mb-5">
+          <p className="mb-6 font-mono text-xs tracking-widest uppercase text-emperor-gold/60">Section 06 — Next Steps</p>
+          <h2 className="mb-5 text-4xl leading-none font-display sm:text-6xl text-emperor-cream">
             The software is{' '}
-            <em className="text-emperor-gold italic">built.</em>
+            <em className="italic text-emperor-gold">built.</em>
             <br />It's waiting for your number.
           </h2>
-          <p className="text-emperor-cream/45 text-base leading-relaxed max-w-md mx-auto mb-10">
+          <p className="max-w-md mx-auto mb-10 text-base leading-relaxed text-emperor-cream/45">
             No setup required on your end. Call the demo line, try the chat, explore the dashboard — 
             then let us know when you want to point it at your real number.
           </p>
 
-          <div className="flex flex-wrap gap-4 justify-center">
+          <div className="flex flex-wrap justify-center gap-4">
             <a
               href="tel:+19046503007"
               className="inline-flex items-center gap-2 font-sans font-bold text-base px-7 py-3.5 rounded bg-emperor-gold text-emperor-black hover:bg-emperor-gold-light transition-colors"
@@ -511,14 +523,14 @@ export default function PitchPage() {
 
 
       {/* ═══ FOOTER ══════════════════════════════════════════════════════════ */}
-      <footer className="border-t border-white/8 px-6 sm:px-16 lg:px-28 py-8 flex flex-wrap justify-between items-center gap-6">
+      <footer className="flex flex-wrap items-center justify-between gap-6 px-6 py-8 border-t border-white/8 sm:px-16 lg:px-28">
         <span className="font-mono text-xs tracking-widest uppercase text-emperor-cream/25">
           EmperorLinda Cell Phone Repairs — Digital Gap Report · Feb 2026
         </span>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
           <div className="flex flex-col gap-0.5">
             <span className="font-mono text-[10px] tracking-widest uppercase text-emperor-gold/50">Built by Nate · Halimede</span>
-            <a href="tel:+19042520927" className="font-mono text-sm font-bold text-emperor-cream hover:text-emperor-gold transition-colors">
+            <a href="tel:+19042520927" className="font-mono text-sm font-bold transition-colors text-emperor-cream hover:text-emperor-gold">
               (904) 252-0927
             </a>
           </div>
@@ -528,7 +540,7 @@ export default function PitchPage() {
               { label: 'Features', href: '/features' },
               { label: 'Dashboard', href: '/dashboard' },
             ].map(n => (
-              <Link key={n.label} href={n.href} className="font-mono text-xs tracking-widest uppercase text-emperor-cream/30 hover:text-emperor-gold transition-colors">
+              <Link key={n.label} href={n.href} className="font-mono text-xs tracking-widest uppercase transition-colors text-emperor-cream/30 hover:text-emperor-gold">
                 {n.label}
               </Link>
             ))}
