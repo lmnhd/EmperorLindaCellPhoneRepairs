@@ -153,16 +153,38 @@ export default function VoiceChat({
   const lastAiResponseRef = useRef('')          // echo detection
   const ttsCooldownRef = useRef(false)          // post-TTS mic cooldown
   const pendingAssistantSpeechRef = useRef('')
+  const recognitionWatchdogRef = useRef<NodeJS.Timeout | null>(null)
+  const micRestartTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const lastRecognitionStartMsRef = useRef(0)
 
   // --- Browser TTS fallback (used when audio playback is blocked/fails) ---
   const speakWithBrowserTTS = useCallback(
     (text: string): Promise<void> =>
       new Promise<void>((resolve) => {
+        if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+          resolve()
+          return
+        }
+
+        let settled = false
+        const done = () => {
+          if (settled) return
+          settled = true
+          resolve()
+        }
+
+        const fallbackTimer = setTimeout(done, 5000)
         const utterance = new SpeechSynthesisUtterance(text)
         utterance.rate = 1.0
         utterance.pitch = persona === 'hustler' ? 1.1 : 0.95
-        utterance.onend = () => resolve()
-        utterance.onerror = () => resolve()
+        utterance.onend = () => {
+          clearTimeout(fallbackTimer)
+          done()
+        }
+        utterance.onerror = () => {
+          clearTimeout(fallbackTimer)
+          done()
+        }
         window.speechSynthesis.cancel()
         window.speechSynthesis.speak(utterance)
       }),
@@ -306,6 +328,19 @@ export default function VoiceChat({
         const url = URL.createObjectURL(blob)
 
         return new Promise<void>((resolve) => {
+          let settled = false
+          const done = () => {
+            if (settled) return
+            settled = true
+            resolve()
+          }
+
+          const playbackWatchdog = setTimeout(() => {
+            setIsAiSpeaking(false)
+            URL.revokeObjectURL(url)
+            done()
+          }, 12000)
+
           if (!audioRef.current) {
             audioRef.current = new Audio()
           }
@@ -318,24 +353,30 @@ export default function VoiceChat({
           audio.src = url
 
           audio.onended = () => {
+            clearTimeout(playbackWatchdog)
             setIsAiSpeaking(false)
             URL.revokeObjectURL(url)
-            resolve()
+            done()
           }
 
           audio.onerror = () => {
-            pendingAssistantSpeechRef.current = text
-            setIsAiSpeaking(false)
-            URL.revokeObjectURL(url)
-            speakWithBrowserTTS(text).finally(() => resolve())
-          }
-
-          audio.play().catch(() => {
+            clearTimeout(playbackWatchdog)
             pendingAssistantSpeechRef.current = text
             setAudioUnlockNeeded(true)
             setIsAiSpeaking(false)
             URL.revokeObjectURL(url)
-            speakWithBrowserTTS(text).finally(() => resolve())
+            done()
+            void speakWithBrowserTTS(text)
+          }
+
+          audio.play().catch(() => {
+            clearTimeout(playbackWatchdog)
+            pendingAssistantSpeechRef.current = text
+            setAudioUnlockNeeded(true)
+            setIsAiSpeaking(false)
+            URL.revokeObjectURL(url)
+            done()
+            void speakWithBrowserTTS(text)
           })
         })
       } catch {
@@ -445,9 +486,10 @@ export default function VoiceChat({
         console.error('[VoiceChat] Full error:', err)
         console.error('[VoiceChat] Text that failed:', text)
         setError(`API Error: ${msg}`)
-        // Still try to resume listening
+      } finally {
+        // Always try to recover listening loop, even if TTS/autoplay stalls
         if (!isEndingRef.current && !isMuted) {
-          console.log('[VoiceChat] Attempting to resume listening after error...')
+          console.log('[VoiceChat] Ensuring listening is active after sendToAI...')
           startListening()
         }
       }
@@ -523,6 +565,20 @@ export default function VoiceChat({
       return
     }
 
+    const now = Date.now()
+    const msSinceLastStart = now - lastRecognitionStartMsRef.current
+    const minRestartGapMs = 900
+    if (msSinceLastStart < minRestartGapMs) {
+      if (!micRestartTimerRef.current) {
+        const wait = minRestartGapMs - msSinceLastStart + 100
+        micRestartTimerRef.current = setTimeout(() => {
+          micRestartTimerRef.current = null
+          startListening()
+        }, wait)
+      }
+      return
+    }
+
     const SpeechRecognitionClass =
       typeof window !== 'undefined'
         ? window.SpeechRecognition || window.webkitSpeechRecognition
@@ -536,6 +592,18 @@ export default function VoiceChat({
     }
 
     try {
+      lastRecognitionStartMsRef.current = Date.now()
+
+      if (micRestartTimerRef.current) {
+        clearTimeout(micRestartTimerRef.current)
+        micRestartTimerRef.current = null
+      }
+
+      if (recognitionWatchdogRef.current) {
+        clearTimeout(recognitionWatchdogRef.current)
+        recognitionWatchdogRef.current = null
+      }
+
       console.log('[VoiceChat] Starting speech recognition...')
       // Create a fresh instance each time for reliability
       const recognition = new SpeechRecognitionClass()
@@ -548,6 +616,17 @@ export default function VoiceChat({
         setIsListening(true)
         shouldListenRef.current = true
         recognitionActiveRef.current = true
+
+        // Safety net: some mobile browsers can leave recognition hanging.
+        recognitionWatchdogRef.current = setTimeout(() => {
+          if (!isEndingRef.current && !isAiSpeaking && !isMuted) {
+            try {
+              recognition.stop()
+            } catch {
+              // ignore
+            }
+          }
+        }, 12000)
       }
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -573,8 +652,14 @@ export default function VoiceChat({
       }
 
       recognition.onerror = (event: Event & { error: string }) => {
+        if (recognitionWatchdogRef.current) {
+          clearTimeout(recognitionWatchdogRef.current)
+          recognitionWatchdogRef.current = null
+        }
+
         if (event.error === 'no-speech' || event.error === 'aborted') {
           // Normal — these fire routinely (e.g. silence, or endCall aborting recognition)
+          recognitionActiveRef.current = false
           if (!isEndingRef.current && !isMuted && shouldListenRef.current) {
             console.log('[VoiceChat] No speech / aborted, restarting listening...')
             setTimeout(() => startListening(), 300)
@@ -582,12 +667,40 @@ export default function VoiceChat({
           return
         }
 
+        if (event.error === 'network' || event.error === 'audio-capture') {
+          recognitionActiveRef.current = false
+          setIsListening(false)
+          if (!isEndingRef.current && !isMuted && shouldListenRef.current) {
+            console.log('[VoiceChat] Recoverable mic error, restarting listening...')
+            setTimeout(() => startListening(), 800)
+          }
+          return
+        }
+
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          recognitionActiveRef.current = false
+          setIsListening(false)
+          shouldListenRef.current = false
+          setError('Microphone permission was blocked. Re-enable mic permissions and try again.')
+          return
+        }
+
         console.error('[VoiceChat] Speech recognition error:', event.error)
         setError(`Mic error: ${event.error}`)
         setIsListening(false)
+        recognitionActiveRef.current = false
+
+        if (!isEndingRef.current && !isMuted && shouldListenRef.current) {
+          setTimeout(() => startListening(), 800)
+        }
       }
 
       recognition.onend = () => {
+        if (recognitionWatchdogRef.current) {
+          clearTimeout(recognitionWatchdogRef.current)
+          recognitionWatchdogRef.current = null
+        }
+
         console.log('[VoiceChat] Recognition ended')
         setIsListening(false)
         recognitionActiveRef.current = false
@@ -608,6 +721,27 @@ export default function VoiceChat({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMuted, isAiSpeaking, handleUserSpeech])
+
+  // --- Self-healing mic loop: if connected but neither listening nor speaking, restart recognition ---
+  useEffect(() => {
+    if (callState !== 'connected') return
+
+    const interval = setInterval(() => {
+      if (
+        !isEndingRef.current &&
+        !isMuted &&
+        !isAiSpeaking &&
+        !isProcessing &&
+        !isListening &&
+        !recognitionActiveRef.current &&
+        !ttsCooldownRef.current
+      ) {
+        startListening()
+      }
+    }, 2500)
+
+    return () => clearInterval(interval)
+  }, [callState, isMuted, isAiSpeaking, isProcessing, isListening, startListening])
 
   // --- Call timer ---
   useEffect(() => {
@@ -675,6 +809,10 @@ export default function VoiceChat({
       audioRef.current.src = ''
     }
     window.speechSynthesis?.cancel()
+    if (micRestartTimerRef.current) {
+      clearTimeout(micRestartTimerRef.current)
+      micRestartTimerRef.current = null
+    }
 
     if (callTimerRef.current) clearInterval(callTimerRef.current)
     cancelAnimationFrame(animFrameRef.current)
@@ -728,6 +866,14 @@ export default function VoiceChat({
         audioRef.current.pause()
       }
       window.speechSynthesis?.cancel()
+      if (micRestartTimerRef.current) {
+        clearTimeout(micRestartTimerRef.current)
+        micRestartTimerRef.current = null
+      }
+      if (recognitionWatchdogRef.current) {
+        clearTimeout(recognitionWatchdogRef.current)
+        recognitionWatchdogRef.current = null
+      }
       if (callTimerRef.current) clearInterval(callTimerRef.current)
       cancelAnimationFrame(animFrameRef.current)
     }
