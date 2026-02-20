@@ -136,6 +136,7 @@ export default function VoiceChat({
   const [isSpeakerOn, setIsSpeakerOn] = useState(true)
   const [currentInterim, setCurrentInterim] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [audioUnlockNeeded, setAudioUnlockNeeded] = useState(false)
   const [barHeights, setBarHeights] = useState<number[]>(Array(24).fill(4))
 
   // --- Refs ---
@@ -151,6 +152,58 @@ export default function VoiceChat({
   const recognitionActiveRef = useRef(false)   // prevents double-start
   const lastAiResponseRef = useRef('')          // echo detection
   const ttsCooldownRef = useRef(false)          // post-TTS mic cooldown
+  const pendingAssistantSpeechRef = useRef('')
+
+  // --- Browser TTS fallback (used when audio playback is blocked/fails) ---
+  const speakWithBrowserTTS = useCallback(
+    (text: string): Promise<void> =>
+      new Promise<void>((resolve) => {
+        const utterance = new SpeechSynthesisUtterance(text)
+        utterance.rate = 1.0
+        utterance.pitch = persona === 'hustler' ? 1.1 : 0.95
+        utterance.onend = () => resolve()
+        utterance.onerror = () => resolve()
+        window.speechSynthesis.cancel()
+        window.speechSynthesis.speak(utterance)
+      }),
+    [persona],
+  )
+
+  // --- Attempt to unlock mobile audio stack on user gesture ---
+  const unlockAudioPlayback = useCallback(async (): Promise<boolean> => {
+    if (typeof window === 'undefined') return false
+
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio()
+      }
+
+      const audio = audioRef.current
+      audio.autoplay = false
+      audio.setAttribute('playsinline', 'true')
+      audio.preload = 'auto'
+
+      const originalMuted = audio.muted
+      const originalVolume = audio.volume
+      const originalSrc = audio.src
+
+      audio.muted = true
+      audio.volume = 0
+      audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
+
+      await audio.play()
+      audio.pause()
+
+      audio.muted = originalMuted
+      audio.volume = originalVolume
+      audio.src = originalSrc
+
+      setAudioUnlockNeeded(false)
+      return true
+    } catch {
+      return false
+    }
+  }, [])
 
   // --- Format call duration ---
   const formatDuration = (seconds: number): string => {
@@ -258,7 +311,10 @@ export default function VoiceChat({
           }
           const audio = audioRef.current
           audio.autoplay = true
+          audio.setAttribute('playsinline', 'true')
+          audio.preload = 'auto'
           audio.volume = 1
+          audio.muted = false
           audio.src = url
 
           audio.onended = () => {
@@ -268,38 +324,53 @@ export default function VoiceChat({
           }
 
           audio.onerror = () => {
+            pendingAssistantSpeechRef.current = text
             setIsAiSpeaking(false)
             URL.revokeObjectURL(url)
-            resolve()
+            speakWithBrowserTTS(text).finally(() => resolve())
           }
 
           audio.play().catch(() => {
+            pendingAssistantSpeechRef.current = text
+            setAudioUnlockNeeded(true)
             setIsAiSpeaking(false)
             URL.revokeObjectURL(url)
-            resolve()
+            speakWithBrowserTTS(text).finally(() => resolve())
           })
         })
       } catch {
         setIsAiSpeaking(false)
         // Fall back to browser speech synthesis
-        return new Promise<void>((resolve) => {
-          const utterance = new SpeechSynthesisUtterance(text)
-          utterance.rate = 1.0
-          utterance.pitch = persona === 'hustler' ? 1.1 : 0.95
-          utterance.onend = () => {
-            setIsAiSpeaking(false)
-            resolve()
-          }
-          utterance.onerror = () => {
-            setIsAiSpeaking(false)
-            resolve()
-          }
-          window.speechSynthesis.speak(utterance)
-        })
+        pendingAssistantSpeechRef.current = text
+        return speakWithBrowserTTS(text)
       }
     },
-    [persona, isSpeakerOn, voiceOverride],
+    [isSpeakerOn, voiceOverride, persona, speakWithBrowserTTS],
   )
+
+  // --- If mobile blocks autoplay, let a tap unlock audio and replay pending assistant text ---
+  useEffect(() => {
+    if (!audioUnlockNeeded) return
+
+    const handleUnlock = async () => {
+      const unlocked = await unlockAudioPlayback()
+      if (!unlocked) return
+
+      const pendingText = pendingAssistantSpeechRef.current.trim()
+      if (pendingText) {
+        pendingAssistantSpeechRef.current = ''
+        await playTTS(pendingText)
+      }
+    }
+
+    window.addEventListener('touchstart', handleUnlock, { passive: true })
+    window.addEventListener('click', handleUnlock)
+
+    return () => {
+      window.removeEventListener('touchstart', handleUnlock)
+      window.removeEventListener('click', handleUnlock)
+    }
+  }, [audioUnlockNeeded, playTTS, unlockAudioPlayback])
 
   // --- Send message to chat API ---
   const sendToAI = useCallback(
@@ -717,6 +788,12 @@ export default function VoiceChat({
             <p className="mt-2 text-xs text-accent-red/80">{error}</p>
           )}
 
+          {audioUnlockNeeded && (
+            <p className="mt-2 text-xs text-emperor-gold/90">
+              Tap anywhere once to enable audio on mobile.
+            </p>
+          )}
+
           <div className="mt-3 flex items-center justify-center gap-3">
             <button
               onClick={toggleMute}
@@ -899,6 +976,14 @@ export default function VoiceChat({
           >
             Dismiss
           </button>
+        </div>
+      )}
+
+      {audioUnlockNeeded && (
+        <div className="px-4 py-2 mx-6 mb-3 border rounded-xl bg-emperor-gold/10 border-emperor-gold/20">
+          <p className="text-xs text-emperor-gold/85">
+            Mobile audio is waiting for a tap. Tap anywhere to unmute voice playback.
+          </p>
         </div>
       )}
 
