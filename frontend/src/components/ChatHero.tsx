@@ -20,7 +20,7 @@ const INITIAL_HERO_MESSAGE: ChatMessage = {
   timestamp: new Date(),
 }
 
-const VoiceChat = dynamic(() => import('@/components/VoiceChat'), { ssr: false })
+const VoiceChat = dynamic(() => import('./VoiceChat'), { ssr: false })
 
 type PersonaKey = 'laidback' | 'professional' | 'hustler'
 type VoiceName = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
@@ -55,6 +55,7 @@ export default function ChatHero() {
   const [isRequestingMic, setIsRequestingMic] = useState(false)
   const [isVoiceMode, setIsVoiceMode] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
+  const [voiceVisualState, setVoiceVisualState] = useState<'connecting' | 'speaking' | 'listening' | 'idle' | 'ending'>('idle')
   const [brandonStatus, setBrandonStatus] = useState('available')
   const [brandonLocation, setBrandonLocation] = useState('shop')
   const [brandonNotes, setBrandonNotes] = useState('Walk-ins welcome')
@@ -112,9 +113,29 @@ export default function ChatHero() {
 
   const busy = useMemo(() => isLoading || isRequestingMic, [isLoading, isRequestingMic])
   const hasConversationHistory = messages.some((message) => message.role === 'user')
-  const voiceHandoffPrompt = hasConversationHistory
-    ? 'We are continuing an active web chat in this same session. Do not re-introduce yourself. Start with one short sentence acknowledging we switched to voice, then continue helping based on prior context.'
-    : undefined
+  const latestAssistantMessage = useMemo(() => {
+    const latest = [...messages].reverse().find((message) => message.role === 'assistant')
+    return latest?.content ?? WELCOME_MESSAGE
+  }, [messages])
+
+  const voiceHandoffPrompt = useMemo(() => {
+    if (!hasConversationHistory) {
+      return 'We are in the same customer session. Start by saying exactly: "Welcome, need your phone repaired fast?"'
+    }
+
+    const historyWindow = messages.slice(-8)
+    const serializedHistory = historyWindow
+      .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
+      .join('\n')
+
+    return [
+      'We are continuing an active web chat in this exact same session.',
+      'Do not re-introduce yourself and do not reset context.',
+      `Start your first spoken response by saying exactly this continuation message: "${latestAssistantMessage}"`,
+      'Then continue helping with the same facts, pricing, and policy from this conversation context:',
+      serializedHistory,
+    ].join('\n')
+  }, [hasConversationHistory, latestAssistantMessage, messages])
 
   const sendMessage = async (content: string) => {
     setVoiceError(null)
@@ -220,6 +241,7 @@ export default function ChatHero() {
     }
 
     setIsVoiceMode(false)
+    setVoiceVisualState('idle')
   }
 
   const handleVoiceAssistantMessage = (content: string) => {
@@ -247,6 +269,7 @@ export default function ChatHero() {
       setIsRequestingMic(true)
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       stream.getTracks().forEach((track) => track.stop())
+      setVoiceVisualState('connecting')
       setIsVoiceMode(true)
     } catch {
       setVoiceError('Microphone access was denied. Please allow access and try again.')
@@ -282,7 +305,7 @@ export default function ChatHero() {
           <TypewriterText
             text={heroMessage}
             responseKey={heroTurn}
-            speed={24}
+            speed={8}
             isLoading={busy}
             className="max-w-4xl mx-auto text-center"
           />
@@ -321,8 +344,10 @@ export default function ChatHero() {
           voiceOverride={voiceOverride}
           sessionId={sessionId}
           handoffPrompt={voiceHandoffPrompt}
+          initialAssistantMessage={latestAssistantMessage}
           renderMode="hero"
           onAssistantMessage={handleVoiceAssistantMessage}
+          onVoiceStateChange={setVoiceVisualState}
         />
       )}
 

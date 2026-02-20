@@ -19,12 +19,6 @@ export default function UserMessagePanel({ messages }: UserMessagePanelProps) {
   const historyMessages = messages
 
   useEffect(() => {
-    if (historyMessages.length > 0) {
-      setCollapsed(false)
-    }
-  }, [historyMessages.length])
-
-  useEffect(() => {
     if (desktopPanelBodyRef.current) {
       desktopPanelBodyRef.current.scrollTop = desktopPanelBodyRef.current.scrollHeight
     }

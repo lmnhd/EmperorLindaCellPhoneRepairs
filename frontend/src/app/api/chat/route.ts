@@ -14,6 +14,7 @@ import {
   type PersonaKey,
 } from '@/lib/promptBuilder'
 import { assembleAgentChannelConfig } from '@/lib/agentConfig'
+import { addAgentDebugEvent } from '@/lib/agentDebugStore'
 
 interface ChatRequestBody {
   message: string
@@ -374,6 +375,20 @@ export async function POST(req: NextRequest) {
 
     // Session management
     const sessionId = body.sessionId || 'default'
+    addAgentDebugEvent({
+      source: 'chat-api',
+      event: 'request_received',
+      sessionId,
+      data: {
+        channel,
+        promptChannel,
+        persona,
+        phone: body.phone,
+        message: body.message,
+      },
+      timestamp: Date.now(),
+    })
+
     let history = conversations.get(sessionId)
 
     if (!history) {
@@ -427,6 +442,30 @@ export async function POST(req: NextRequest) {
 
       // If the model wants to call functions
       if (msg.tool_calls && msg.tool_calls.length > 0) {
+        addAgentDebugEvent({
+          source: 'chat-api',
+          event: 'tool_calls_requested',
+          sessionId,
+          data: {
+            toolCalls: msg.tool_calls.map((tc) => {
+              if ('function' in tc) {
+                return {
+                  id: tc.id,
+                  name: tc.function.name,
+                  args: tc.function.arguments,
+                }
+              }
+
+              return {
+                id: tc.id,
+                name: tc.type,
+                args: '',
+              }
+            }),
+          },
+          timestamp: Date.now(),
+        })
+
         history.push({
           role: 'assistant' as const,
           content: msg.content || '',
@@ -443,6 +482,18 @@ export async function POST(req: NextRequest) {
           }
           const args = JSON.parse(fnCall.function.arguments) as Record<string, unknown>
           const result = await executeFunction(fnCall.function.name, args)
+
+          addAgentDebugEvent({
+            source: 'chat-api',
+            event: 'tool_call_result',
+            sessionId,
+            data: {
+              toolName: fnCall.function.name,
+              args,
+              result,
+            },
+            timestamp: Date.now(),
+          })
 
           history.push({
             role: 'tool' as const,
@@ -480,6 +531,17 @@ export async function POST(req: NextRequest) {
       }
 
       history.push({ role: 'assistant' as const, content: reply })
+
+      addAgentDebugEvent({
+        source: 'chat-api',
+        event: 'assistant_reply',
+        sessionId,
+        data: {
+          model,
+          reply,
+        },
+        timestamp: Date.now(),
+      })
 
       // Trim conversation if it gets too long
       if (history.length > 42) {

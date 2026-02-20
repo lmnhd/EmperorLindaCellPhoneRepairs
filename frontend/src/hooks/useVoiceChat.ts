@@ -1,321 +1,504 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
-
-/* ──────────────────────────────────────────────────────
-   useVoiceChat — Browser WebRTC → OpenAI Realtime API
-
-   Flow:
-   1. POST /api/realtime-session  →  ephemeral client_secret
-   2. getUserMedia()              →  mic audio track
-   3. RTCPeerConnection + SDP     →  negotiate with OpenAI
-   4. DataChannel "oai-events"   →  transcripts, speaking events
-   5. Remote audio track          →  <audio> playback via srcObject
-      └─ srcObject is AUTOPLAY-EXEMPT on iOS/Android — no unlock needed
-
-   Key difference from the old blob/TTS approach:
-   The audio arrives as a live WebRTC MediaStream assigned to
-   audioEl.srcObject. Mobile browsers grant these streams a
-   special autoplay exemption for real-time communication, so
-   audio plays immediately without any user-gesture workarounds.
-   ────────────────────────────────────────────────────── */
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
-export type VoiceTranscript = {
+export interface VoiceTranscript {
   role: 'user' | 'assistant'
   text: string
   timestamp: number
 }
 
-type UseVoiceChatReturn = {
-  status: VoiceStatus
-  transcripts: VoiceTranscript[]
-  isSpeaking: boolean
-  isUserSpeaking: boolean
-  error: string | null
-  connect: () => Promise<void>
-  disconnect: () => void
-  setMicMuted: (muted: boolean) => void
-  setSpeakerMuted: (muted: boolean) => void
+interface RealtimeSessionResponse {
+  client_secret?: string
+  session_id?: string
+  expires_at?: number
+  model?: string
+  error?: string
+  detail?: string
 }
 
-export function useVoiceChat(): UseVoiceChatReturn {
+interface ConnectOptions {
+  sessionId?: string
+  persona?: 'laidback' | 'professional' | 'hustler'
+  brandonStatus?: string
+  brandonLocation?: string
+  brandonNotes?: string
+  voiceOverride?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
+  handoffPrompt?: string
+  initialAssistantMessage?: string
+}
+
+interface UseVoiceChatResult {
+  status: VoiceStatus
+  transcripts: VoiceTranscript[]
+  isAssistantSpeaking: boolean
+  isUserSpeaking: boolean
+  error: string | null
+  connect: (options?: ConnectOptions) => Promise<void>
+  disconnect: () => void
+  clearTranscripts: () => void
+  setMicMuted: (muted: boolean) => void
+  setSpeakerEnabled: (enabled: boolean) => void
+}
+
+interface RealtimeEventBase {
+  type?: string
+}
+
+interface RealtimeTranscriptEvent extends RealtimeEventBase {
+  transcript?: string
+}
+
+interface DebugVoiceEvent {
+  source: 'voice-hook'
+  event: string
+  sessionId?: string
+  data?: Record<string, unknown>
+  timestamp: number
+}
+
+export function useVoiceChat(): UseVoiceChatResult {
   const [status, setStatus] = useState<VoiceStatus>('idle')
   const [transcripts, setTranscripts] = useState<VoiceTranscript[]>([])
-  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false)
   const [isUserSpeaking, setIsUserSpeaking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const pcRef = useRef<RTCPeerConnection | null>(null)
-  const dcRef = useRef<RTCDataChannel | null>(null)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
+  const dataChannelRef = useRef<RTCDataChannel | null>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
+  const assistantTranscriptBufferRef = useRef<Map<string, string>>(new Map())
+  const isCleaningRef = useRef(false)
+  const connectAttemptRef = useRef(0)
 
-  // Accumulate partial assistant transcript deltas keyed by item_id
-  const partialRef = useRef<Map<string, string>>(new Map())
-
-  useEffect(() => {
-    return () => { cleanupRef.current() }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Use a ref so cleanup can be called from effects without stale closures
-  const cleanupRef = useRef<() => void>(() => {})
-
-  const cleanup = useCallback(() => {
-    dcRef.current?.close()
-    dcRef.current = null
-
-    pcRef.current?.close()
-    pcRef.current = null
-
-    streamRef.current?.getTracks().forEach((t) => t.stop())
-    streamRef.current = null
-
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.srcObject = null
-      audioRef.current = null
+  const logVoiceDebug = useCallback((event: string, sessionId: string | undefined, data?: Record<string, unknown>) => {
+    const payload: DebugVoiceEvent = {
+      source: 'voice-hook',
+      event,
+      sessionId,
+      data,
+      timestamp: Date.now(),
     }
 
-    partialRef.current.clear()
+    console.log('[VoiceDebug]', payload)
+
+    void fetch('/api/agent-debug', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    }).catch(() => {
+      // Best effort logging only.
+    })
   }, [])
 
-  // Keep the ref in sync
-  cleanupRef.current = cleanup
+  const teardown = useCallback(() => {
+    isCleaningRef.current = true
 
-  const handleMessage = useCallback((event: MessageEvent) => {
-    try {
-      const msg = JSON.parse(event.data as string)
-
-      switch (msg.type) {
-        // ── AI audio state ──
-        case 'response.audio.delta':
-          setIsSpeaking(true)
-          break
-
-        case 'response.audio.done':
-          setIsSpeaking(false)
-          break
-
-        case 'response.done':
-          setIsSpeaking(false)
-          break
-
-        // ── Assistant transcript ──
-        case 'response.audio_transcript.delta':
-          if (msg.item_id && msg.delta) {
-            partialRef.current.set(
-              msg.item_id,
-              (partialRef.current.get(msg.item_id) ?? '') + msg.delta,
-            )
-          }
-          break
-
-        case 'response.audio_transcript.done':
-          setIsSpeaking(false)
-          if (msg.transcript?.trim()) {
-            setTranscripts((prev) => [
-              ...prev,
-              { role: 'assistant', text: msg.transcript.trim(), timestamp: Date.now() },
-            ])
-          } else if (msg.item_id) {
-            const accumulated = partialRef.current.get(msg.item_id)
-            if (accumulated?.trim()) {
-              setTranscripts((prev) => [
-                ...prev,
-                { role: 'assistant', text: accumulated.trim(), timestamp: Date.now() },
-              ])
-            }
-            partialRef.current.delete(msg.item_id)
-          }
-          break
-
-        // ── User speech / VAD ──
-        case 'input_audio_buffer.speech_started':
-          setIsUserSpeaking(true)
-          break
-
-        case 'input_audio_buffer.speech_stopped':
-          setIsUserSpeaking(false)
-          break
-
-        // ── User transcript (Whisper) ──
-        case 'conversation.item.input_audio_transcription.completed':
-          if (msg.transcript?.trim()) {
-            setTranscripts((prev) => [
-              ...prev,
-              { role: 'user', text: msg.transcript.trim(), timestamp: Date.now() },
-            ])
-          }
-          break
-
-        // ── Errors ──
-        case 'error':
-          console.error('[Voice] OpenAI error event:', msg.error)
-          setError(msg.error?.message ?? 'Voice session error')
-          break
-
-        default:
-          break
+    const channel = dataChannelRef.current
+    if (channel) {
+      try {
+        channel.close()
+      } catch {
+        // no-op
       }
-    } catch (err) {
-      console.error('[Voice] Failed to parse data channel message:', err)
+      dataChannelRef.current = null
     }
+
+    const peer = peerConnectionRef.current
+    if (peer) {
+      try {
+        peer.getSenders().forEach((sender) => {
+          try {
+            sender.track?.stop()
+          } catch {
+            // no-op
+          }
+        })
+        peer.close()
+      } catch {
+        // no-op
+      }
+      peerConnectionRef.current = null
+    }
+
+    const stream = localStreamRef.current
+    if (stream) {
+      stream.getTracks().forEach((track) => {
+        try {
+          track.stop()
+        } catch {
+          // no-op
+        }
+      })
+      localStreamRef.current = null
+    }
+
+    const audio = remoteAudioRef.current
+    if (audio) {
+      try {
+        audio.pause()
+        audio.srcObject = null
+      } catch {
+        // no-op
+      }
+      remoteAudioRef.current = null
+    }
+
+    assistantTranscriptBufferRef.current.clear()
+    setIsAssistantSpeaking(false)
+    setIsUserSpeaking(false)
+
+    isCleaningRef.current = false
   }, [])
 
-  const connect = useCallback(async () => {
-    if (status === 'connecting' || status === 'connected') return
+  const appendTranscript = useCallback((role: 'user' | 'assistant', text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+
+    setTranscripts((previous) => [
+      ...previous,
+      {
+        role,
+        text: trimmed,
+        timestamp: Date.now(),
+      },
+    ])
+  }, [])
+
+  const handleRealtimeEvent = useCallback((event: MessageEvent<string>) => {
+    let payload: unknown
+    try {
+      payload = JSON.parse(event.data)
+    } catch {
+      return
+    }
+
+    const base = payload as RealtimeEventBase
+
+    switch (base.type) {
+      case 'response.audio.delta':
+        setIsAssistantSpeaking(true)
+        break
+
+      case 'response.audio.done':
+      case 'response.done':
+        setIsAssistantSpeaking(false)
+        break
+
+      case 'input_audio_buffer.speech_started':
+        setIsUserSpeaking(true)
+        break
+
+      case 'input_audio_buffer.speech_stopped':
+        setIsUserSpeaking(false)
+        break
+
+      case 'conversation.item.input_audio_transcription.completed': {
+        const transcriptEvent = payload as RealtimeTranscriptEvent
+        if (transcriptEvent.transcript) {
+          appendTranscript('user', transcriptEvent.transcript)
+        }
+        break
+      }
+
+      case 'response.audio_transcript.delta': {
+        const deltaPayload = payload as { item_id?: string; delta?: string }
+        if (deltaPayload.item_id && deltaPayload.delta) {
+          const existing = assistantTranscriptBufferRef.current.get(deltaPayload.item_id) ?? ''
+          assistantTranscriptBufferRef.current.set(deltaPayload.item_id, `${existing}${deltaPayload.delta}`)
+        }
+        break
+      }
+
+      case 'response.audio_transcript.done': {
+        const transcriptDonePayload = payload as { item_id?: string; transcript?: string }
+        const finalText = transcriptDonePayload.transcript?.trim() ?? ''
+
+        if (finalText) {
+          appendTranscript('assistant', finalText)
+        } else if (transcriptDonePayload.item_id) {
+          const buffered = assistantTranscriptBufferRef.current.get(transcriptDonePayload.item_id) ?? ''
+          appendTranscript('assistant', buffered)
+        }
+
+        if (transcriptDonePayload.item_id) {
+          assistantTranscriptBufferRef.current.delete(transcriptDonePayload.item_id)
+        }
+
+        setIsAssistantSpeaking(false)
+        break
+      }
+
+      case 'error': {
+        const errorPayload = payload as { error?: { message?: string } }
+        setError(errorPayload.error?.message ?? 'Realtime voice session error')
+        break
+      }
+
+      default:
+        break
+    }
+  }, [appendTranscript])
+
+  const connect = useCallback(async (options?: ConnectOptions) => {
+    if (status === 'connecting' || status === 'connected') {
+      return
+    }
+
+    const effectiveSessionId = options?.sessionId
 
     setStatus('connecting')
     setError(null)
-    setTranscripts([])
-    partialRef.current.clear()
+    logVoiceDebug('connect_started', effectiveSessionId, {
+      persona: options?.persona,
+      voiceOverride: options?.voiceOverride,
+      hasHandoffPrompt: Boolean(options?.handoffPrompt?.trim()),
+      hasInitialAssistantMessage: Boolean(options?.initialAssistantMessage?.trim()),
+    })
 
     try {
-      // ── Step 1: Get ephemeral token ──────────────────────
-      const tokenRes = await fetch('/api/realtime-session', { method: 'POST' })
-      if (!tokenRes.ok) {
-        const errData = await tokenRes.json().catch(() => ({})) as { error?: string }
-        throw new Error(errData.error ?? `Session creation failed (${tokenRes.status})`)
-      }
-      const { client_secret } = await tokenRes.json() as { client_secret: string }
-      if (!client_secret) throw new Error('No client secret returned from server')
+      const connectAttempt = connectAttemptRef.current + 1
+      connectAttemptRef.current = connectAttempt
 
-      // ── Step 2: RTCPeerConnection ────────────────────────
-      const pc = new RTCPeerConnection()
-      pcRef.current = pc
+      teardown()
 
-      // ── Step 3: Audio element (srcObject = autoplay-exempt on mobile) ──
-      const audioEl = new Audio()
-      audioEl.autoplay = true
-      // Required for iOS to play audio inline rather than launching Media Player
-      audioEl.setAttribute('playsinline', 'true')
-      audioRef.current = audioEl
-
-      pc.ontrack = (event) => {
-        // Assigning a live MediaStream to srcObject bypasses mobile autoplay
-        // restrictions that would block audio.src = blob:// playback.
-        audioEl.srcObject = event.streams[0]
+      const ensureConnectStillActive = () => {
+        if (connectAttemptRef.current !== connectAttempt) {
+          throw new Error('Voice connection cancelled')
+        }
       }
 
-      // ── Step 4: Microphone ───────────────────────────────
+      const sessionRes = await fetch('/api/realtime-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(options ?? {}),
+      })
+
+      if (!sessionRes.ok) {
+        let detail = ''
+        try {
+          const errorJson = (await sessionRes.json()) as RealtimeSessionResponse
+          detail = errorJson.detail ?? errorJson.error ?? ''
+        } catch {
+          detail = await sessionRes.text().catch(() => '')
+        }
+
+        const suffix = detail ? `: ${detail}` : ''
+        logVoiceDebug('session_init_failed', effectiveSessionId, {
+          status: sessionRes.status,
+          detail,
+        })
+        throw new Error(`Session init failed (${sessionRes.status})${suffix}`)
+      }
+
+      ensureConnectStillActive()
+
+      const sessionData = (await sessionRes.json()) as RealtimeSessionResponse
+      const ephemeralKey = sessionData.client_secret
+      logVoiceDebug('session_initialized', effectiveSessionId, {
+        model: sessionData.model,
+        hasClientSecret: Boolean(ephemeralKey),
+      })
+
+      if (!ephemeralKey) {
+        throw new Error('Missing client secret from realtime-session endpoint')
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 24000,
         },
       })
-      streamRef.current = stream
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+      ensureConnectStillActive()
+      localStreamRef.current = stream
 
-      // ── Step 5: Data channel for session events ──────────
-      const dc = pc.createDataChannel('oai-events')
-      dcRef.current = dc
+      const peer = new RTCPeerConnection()
+      peerConnectionRef.current = peer
 
-      dc.onopen = () => {
-        console.log('[Voice] Data channel open — requesting greeting')
-        // Belt-and-suspenders: ensure transcription is on
-        dc.send(
-          JSON.stringify({
-            type: 'session.update',
-            session: { input_audio_transcription: { model: 'whisper-1' } },
-          }),
-        )
-        // Prompt OpenAI to deliver the opening greeting immediately
-        dc.send(JSON.stringify({ type: 'response.create' }))
+      const audioEl = new Audio()
+      audioEl.autoplay = true
+      audioEl.setAttribute('playsinline', 'true')
+      remoteAudioRef.current = audioEl
+
+      peer.ontrack = (trackEvent: RTCTrackEvent) => {
+        const [remoteStream] = trackEvent.streams
+        if (!remoteStream) return
+        audioEl.srcObject = remoteStream
+        void audioEl.play().catch(() => {
+          // Browser may require additional tap; UI keeps session active.
+        })
       }
 
-      dc.onmessage = handleMessage
+      stream.getTracks().forEach((track) => {
+        peer.addTrack(track, stream)
+      })
 
-      dc.onclose = () => console.log('[Voice] Data channel closed')
-      dc.onerror = (ev) => console.error('[Voice] Data channel error:', ev)
+      const dataChannel = peer.createDataChannel('oai-events')
+      dataChannelRef.current = dataChannel
+      dataChannel.onmessage = handleRealtimeEvent
+      dataChannel.onopen = () => {
+        logVoiceDebug('data_channel_open', effectiveSessionId)
+      }
 
-      // ── Step 6: SDP offer ────────────────────────────────
-      const offer = await pc.createOffer()
-      await pc.setLocalDescription(offer)
+      const offer = await peer.createOffer()
+      await peer.setLocalDescription(offer)
+      ensureConnectStillActive()
 
-      // ── Step 7: OpenAI SDP answer ────────────────────────
-      const sdpRes = await fetch(
-        'https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${client_secret}`,
-            'Content-Type': 'application/sdp',
-          },
-          body: offer.sdp,
+      const model = sessionData.model ?? 'gpt-realtime'
+      const sdpResponse = await fetch(`https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${ephemeralKey}`,
+          'Content-Type': 'application/sdp',
         },
-      )
-      if (!sdpRes.ok) throw new Error(`WebRTC SDP negotiation failed (${sdpRes.status})`)
+        body: offer.sdp,
+      })
 
-      const answerSdp = await sdpRes.text()
-      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
-
-      // ── Step 8: Connection state monitoring ──────────────
-      pc.onconnectionstatechange = () => {
-        console.log('[Voice] Connection state:', pc.connectionState)
-        if (pc.connectionState === 'connected') {
-          setStatus('connected')
-        } else if (
-          pc.connectionState === 'disconnected' ||
-          pc.connectionState === 'failed' ||
-          pc.connectionState === 'closed'
-        ) {
-          setStatus('idle')
-          cleanup()
-        }
+      if (!sdpResponse.ok) {
+        const detail = await sdpResponse.text()
+        logVoiceDebug('sdp_exchange_failed', effectiveSessionId, {
+          model,
+          detail,
+        })
+        throw new Error(`Realtime SDP exchange failed: ${detail}`)
       }
 
-      pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-          setStatus('connected')
-        }
+      const answerSdp = await sdpResponse.text()
+      ensureConnectStillActive()
+
+      if (peerConnectionRef.current !== peer || peer.signalingState === 'closed') {
+        throw new Error('Voice connection closed before remote description was applied')
       }
 
-      // Optimistic — most connections resolve immediately
+      await peer.setRemoteDescription({
+        type: 'answer',
+        sdp: answerSdp,
+      })
+
+      ensureConnectStillActive()
+
+      const waitForDataChannelOpen = async () => {
+        if (dataChannel.readyState === 'open') return
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            dataChannel.removeEventListener('open', onOpen)
+            reject(new Error('Data channel did not open in time'))
+          }, 3000)
+
+          const onOpen = () => {
+            clearTimeout(timeout)
+            resolve()
+          }
+
+          dataChannel.addEventListener('open', onOpen, { once: true })
+        })
+      }
+
+      await waitForDataChannelOpen()
+      ensureConnectStillActive()
+
+      const kickoffMessage = options?.initialAssistantMessage?.trim()
+      const kickoffInstruction = kickoffMessage
+        ? `We already started this conversation in text. Start speaking immediately with this exact continuation message in one short natural sentence: "${kickoffMessage}". Then continue helping without re-introducing yourself.`
+        : options?.handoffPrompt?.trim() ||
+          'Start speaking immediately with a warm one-sentence greeting and ask how you can help with the repair.'
+
+      const kickoffEvent = {
+        type: 'response.create',
+        response: {
+          modalities: ['audio', 'text'],
+          instructions: kickoffInstruction,
+        },
+      }
+
+      dataChannel.send(JSON.stringify(kickoffEvent))
+      logVoiceDebug('kickoff_sent', effectiveSessionId, {
+        hasExplicitKickoffMessage: Boolean(kickoffMessage),
+      })
+
       setStatus('connected')
-    } catch (err) {
-      console.error('[Voice] Connection error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to connect voice session')
+      logVoiceDebug('connect_completed', effectiveSessionId, {
+        model,
+      })
+    } catch (connectError: unknown) {
+      teardown()
+
+      const message = connectError instanceof Error ? connectError.message : 'Failed to connect voice session'
+      const isCancellation =
+        message.includes('Voice connection cancelled') ||
+        message.includes('closed before remote description') ||
+        message.includes("signalingState is 'closed'")
+
+      if (isCancellation) {
+        setStatus('idle')
+        logVoiceDebug('connect_cancelled', effectiveSessionId, {
+          reason: message,
+        })
+        return
+      }
+
       setStatus('error')
-      cleanup()
+      setError(message)
+      logVoiceDebug('connect_failed', effectiveSessionId, {
+        reason: message,
+      })
+      throw connectError
     }
-  }, [status, cleanup, handleMessage])
+  }, [handleRealtimeEvent, logVoiceDebug, status, teardown])
 
   const disconnect = useCallback(() => {
-    cleanup()
+    connectAttemptRef.current += 1
+    teardown()
     setStatus('idle')
-    setIsSpeaking(false)
-    setIsUserSpeaking(false)
-  }, [cleanup])
+    setError(null)
+    logVoiceDebug('disconnect', undefined)
+  }, [logVoiceDebug, teardown])
 
-  /** Mute / unmute the microphone input track */
+  const clearTranscripts = useCallback(() => {
+    setTranscripts([])
+  }, [])
+
   const setMicMuted = useCallback((muted: boolean) => {
-    streamRef.current?.getAudioTracks().forEach((t) => {
-      t.enabled = !muted
+    const stream = localStreamRef.current
+    if (!stream) return
+    stream.getAudioTracks().forEach((track) => {
+      track.enabled = !muted
     })
   }, [])
 
-  /** Mute / unmute the AI voice output */
-  const setSpeakerMuted = useCallback((muted: boolean) => {
-    if (audioRef.current) {
-      audioRef.current.muted = muted
-    }
+  const setSpeakerEnabled = useCallback((enabled: boolean) => {
+    const audio = remoteAudioRef.current
+    if (!audio) return
+    audio.muted = !enabled
+    audio.volume = enabled ? 1 : 0
   }, [])
+
+  useEffect(() => {
+    return () => {
+      teardown()
+    }
+  }, [teardown])
 
   return {
     status,
     transcripts,
-    isSpeaking,
+    isAssistantSpeaking,
     isUserSpeaking,
     error,
     connect,
     disconnect,
+    clearTranscripts,
     setMicMuted,
-    setSpeakerMuted,
+    setSpeakerEnabled,
   }
 }

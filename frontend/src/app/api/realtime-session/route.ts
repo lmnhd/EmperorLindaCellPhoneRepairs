@@ -1,89 +1,244 @@
 import { NextResponse } from 'next/server'
-import { getBrandonState } from '@/lib/dynamodb'
+import { getBrandonState, type BrandonState } from '@/lib/dynamodb'
 import { assembleAgentChannelConfig } from '@/lib/agentConfig'
+import { addAgentDebugEvent } from '@/lib/agentDebugStore'
 
-/* ──────────────────────────────────────────────────────
-   POST /api/realtime-session
+type VoiceName =
+  | 'alloy'
+  | 'echo'
+  | 'fable'
+  | 'onyx'
+  | 'nova'
+  | 'shimmer'
+  | 'ash'
+  | 'ballad'
+  | 'coral'
+  | 'sage'
+  | 'verse'
+  | 'marin'
+  | 'cedar'
+type SupportedRealtimeVoice =
+  | 'alloy'
+  | 'ash'
+  | 'ballad'
+  | 'coral'
+  | 'echo'
+  | 'sage'
+  | 'shimmer'
+  | 'verse'
+  | 'marin'
+  | 'cedar'
+type PersonaKey = 'laidback' | 'professional' | 'hustler'
 
-   Issues an ephemeral OpenAI Realtime API client_secret
-   for browser-based WebRTC voice chat. The browser uses
-   this token to negotiate a WebRTC connection directly
-   with OpenAI — no Twilio relay needed for the web demo.
+interface RealtimeSessionRequest {
+  sessionId?: string
+  persona?: PersonaKey
+  brandonStatus?: string
+  brandonLocation?: string
+  brandonNotes?: string
+  voiceOverride?: VoiceName
+  handoffPrompt?: string
+}
 
-   Session is pre-configured with:
-   - LINDA's assembled phone prompt (from DynamoDB state)
-   - Server VAD turn detection
-   - Whisper transcription
-   ────────────────────────────────────────────────────── */
+interface OpenAIRealtimeErrorResponse {
+  error?: {
+    message?: string
+    type?: string
+    code?: string
+  }
+}
 
 const BROWSER_VOICE_ADDENDUM = `
-
 BROWSER VOICE CHAT INSTRUCTIONS:
-- The user is speaking through their browser microphone — this is the in-app demo experience.
-- Keep EVERY response SHORT: 1-2 sentences maximum.
-- Be warm, natural, and conversational — this is a phone-style interaction.
-- If you cannot resolve something directly, collect their name and phone number and let them know a technician will follow up.
-- Do NOT read out long lists or menus. Offer one clear option at a time.
+- This is a live browser voice conversation.
+- Keep replies concise: 1-2 short sentences unless the user asks for detail.
+- Speak naturally and conversationally, like a real receptionist.
+- Stay aligned with EmperorLinda Cell Phone Repairs brand voice.
+- If this session started after active web chat, continue seamlessly without re-introducing yourself.
+- Confirm important booking details before finalizing.
+`
 
-GREETING (use this exact text on your first turn):
-"Hey, you've reached EmperorLinda Repairs — I'm LINDA, your AI assistant. What can I help you fix today?"`
+const SUPPORTED_REALTIME_VOICES: Set<SupportedRealtimeVoice> = new Set([
+  'alloy',
+  'ash',
+  'ballad',
+  'coral',
+  'echo',
+  'sage',
+  'shimmer',
+  'verse',
+  'marin',
+  'cedar',
+])
 
-export async function POST() {
+const LEGACY_VOICE_MAP: Record<string, SupportedRealtimeVoice> = {
+  nova: 'alloy',
+  onyx: 'cedar',
+  fable: 'verse',
+}
+
+function normalizeRealtimeVoice(input: VoiceName | string | undefined): SupportedRealtimeVoice {
+  if (!input) return 'alloy'
+
+  const normalized = input.trim().toLowerCase()
+  if (SUPPORTED_REALTIME_VOICES.has(normalized as SupportedRealtimeVoice)) {
+    return normalized as SupportedRealtimeVoice
+  }
+
+  return LEGACY_VOICE_MAP[normalized] ?? 'alloy'
+}
+
+function applyOverrides(state: BrandonState, request: RealtimeSessionRequest): BrandonState {
+  return {
+    ...state,
+    status: request.brandonStatus ?? state.status,
+    location: request.brandonLocation ?? state.location,
+    notes: request.brandonNotes ?? state.notes,
+    persona: request.persona ?? state.persona,
+    voice: request.voiceOverride ?? state.voice,
+  }
+}
+
+function buildSystemPrompt(basePrompt: string, request: RealtimeSessionRequest): string {
+  const parts: string[] = [basePrompt, BROWSER_VOICE_ADDENDUM]
+
+  if (request.handoffPrompt?.trim()) {
+    parts.push(`\nHANDOFF CONTEXT:\n${request.handoffPrompt.trim()}`)
+  }
+
+  if (request.sessionId?.trim()) {
+    parts.push(`\nSESSION ID: ${request.sessionId.trim()}`)
+  }
+
+  return parts.join('\n')
+}
+
+export async function POST(req: Request) {
   const apiKey = process.env.OPENAI_API_KEY
+
   if (!apiKey) {
-    return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
+    return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 500 })
   }
 
   try {
-    const state = await getBrandonState()
-    const assembled = assembleAgentChannelConfig(state, 'phone')
+    const body = (await req.json().catch(() => ({}))) as RealtimeSessionRequest
+    const sessionId = body.sessionId?.trim() || 'voice-session'
+    const currentState = await getBrandonState()
+    const effectiveState = applyOverrides(currentState, body)
 
-    const systemPrompt = assembled.systemPrompt + BROWSER_VOICE_ADDENDUM
+    const assembled = assembleAgentChannelConfig(effectiveState, 'phone')
+    const instructions = buildSystemPrompt(assembled.systemPrompt, body)
+    const chosenVoice = normalizeRealtimeVoice((body.voiceOverride ?? assembled.voice ?? 'alloy') as VoiceName)
 
-    const openAiResponse = await fetch('https://api.openai.com/v1/realtime/sessions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
+    addAgentDebugEvent({
+      source: 'realtime-session-api',
+      event: 'session_request_received',
+      sessionId,
+      data: {
+        persona: effectiveState.persona,
+        voiceRequested: body.voiceOverride ?? assembled.voice,
+        voiceNormalized: chosenVoice,
+        status: effectiveState.status,
+        location: effectiveState.location,
+        hasHandoffPrompt: Boolean(body.handoffPrompt?.trim()),
       },
-      body: JSON.stringify({
-        model: 'gpt-4o-realtime-preview-2024-12-17',
-        voice: assembled.voice ?? 'alloy',
-        instructions: systemPrompt,
-        input_audio_format: 'pcm16',
-        output_audio_format: 'pcm16',
-        input_audio_transcription: {
-          model: 'whisper-1',
-        },
-        turn_detection: {
-          type: 'server_vad',
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 600,
-        },
-        modalities: ['text', 'audio'],
-        temperature: assembled.temperature ?? 0.7,
-      }),
+      timestamp: Date.now(),
     })
 
-    if (!openAiResponse.ok) {
-      const errorText = await openAiResponse.text()
-      console.error('OpenAI realtime session creation failed:', openAiResponse.status, errorText)
+    const primaryModel = process.env.OPENAI_REALTIME_MODEL?.trim() || 'gpt-realtime'
+    const legacyFallbackModel = 'gpt-4o-realtime-preview-2024-12-17'
+
+    const createSession = async (model: string) =>
+      fetch('https://api.openai.com/v1/realtime/sessions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          voice: chosenVoice,
+          instructions,
+          modalities: ['text', 'audio'],
+          input_audio_format: 'pcm16',
+          output_audio_format: 'pcm16',
+          input_audio_transcription: {
+            model: 'whisper-1',
+          },
+          turn_detection: {
+            type: 'server_vad',
+            threshold: 0.5,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 700,
+          },
+          temperature: assembled.temperature,
+        }),
+      })
+
+    let modelUsed = primaryModel
+    let response = await createSession(modelUsed)
+
+    if (!response.ok && response.status === 400 && modelUsed !== legacyFallbackModel) {
+      modelUsed = legacyFallbackModel
+      response = await createSession(modelUsed)
+    }
+
+    if (!response.ok) {
+      const detailText = await response.text()
+      let detailMessage = detailText
+
+      try {
+        const parsed = JSON.parse(detailText) as OpenAIRealtimeErrorResponse
+        detailMessage = parsed.error?.message ?? detailText
+      } catch {
+        // Keep raw detail text when not JSON.
+      }
+
+      addAgentDebugEvent({
+        source: 'realtime-session-api',
+        event: 'session_request_failed',
+        sessionId,
+        data: {
+          status: response.status,
+          model: modelUsed,
+          detail: detailMessage,
+        },
+        timestamp: Date.now(),
+      })
+
       return NextResponse.json(
-        { error: 'Failed to create voice session', detail: errorText },
-        { status: openAiResponse.status },
+        {
+          error: 'Failed to create realtime session',
+          detail: detailMessage,
+          model: modelUsed,
+        },
+        { status: response.status },
       )
     }
 
-    const session = await openAiResponse.json()
+    const session = (await response.json()) as {
+      id?: string
+      client_secret?: { value?: string; expires_at?: number }
+    }
 
     return NextResponse.json({
       client_secret: session.client_secret?.value,
       session_id: session.id,
       expires_at: session.client_secret?.expires_at,
+      model: modelUsed,
     })
-  } catch (err) {
-    console.error('[realtime-session] Internal error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to create realtime session'
+
+    addAgentDebugEvent({
+      source: 'realtime-session-api',
+      event: 'session_request_error',
+      data: {
+        error: message,
+      },
+      timestamp: Date.now(),
+    })
+
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
