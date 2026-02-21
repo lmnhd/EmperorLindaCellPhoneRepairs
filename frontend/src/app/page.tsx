@@ -30,6 +30,7 @@ export default function LandingPage() {
   const [mounted, setMounted] = useState(false)
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
   const [isChatInputFocused, setIsChatInputFocused] = useState(false)
+  const [isChatLockActive, setIsChatLockActive] = useState(false)
   const [sectionsExpandedBySwipe, setSectionsExpandedBySwipe] = useState(false)
 
   useEffect(() => {
@@ -37,12 +38,17 @@ export default function LandingPage() {
   }, [])
 
   useEffect(() => {
-    if (!isChatInputFocused) {
+    if (isChatInputFocused) {
+      setSectionsExpandedBySwipe(false)
+      return
+    }
+
+    if (!isChatInputFocused && !isChatLockActive) {
       setSectionsExpandedBySwipe(false)
     }
-  }, [isChatInputFocused])
+  }, [isChatInputFocused, isChatLockActive])
 
-  const shouldCollapseLowerSections = (isKeyboardOpen || isChatInputFocused) && !sectionsExpandedBySwipe
+  const shouldCollapseLowerSections = (isChatLockActive || isKeyboardOpen || isChatInputFocused) && !sectionsExpandedBySwipe
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -105,8 +111,12 @@ export default function LandingPage() {
             setSectionsExpandedBySwipe(false)
           }
         }}
+        onConversationStarted={() => {
+          setIsChatLockActive(true)
+          setSectionsExpandedBySwipe(false)
+        }}
         onHardSwipeUp={() => {
-          if (isChatInputFocused || isKeyboardOpen) {
+          if (isChatInputFocused || isKeyboardOpen || isChatLockActive) {
             setSectionsExpandedBySwipe(true)
           }
         }}

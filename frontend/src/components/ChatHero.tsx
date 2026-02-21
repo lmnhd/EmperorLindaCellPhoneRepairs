@@ -70,9 +70,10 @@ function normalizeVoiceName(input: string | undefined): VoiceName | undefined {
 interface ChatHeroProps {
   onInputFocusChange?: (focused: boolean) => void
   onHardSwipeUp?: () => void
+  onConversationStarted?: () => void
 }
 
-export default function ChatHero({ onInputFocusChange, onHardSwipeUp }: ChatHeroProps) {
+export default function ChatHero({ onInputFocusChange, onHardSwipeUp, onConversationStarted }: ChatHeroProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([createInitialHeroMessage(DEFAULT_WELCOME_MESSAGE)])
   const [heroMessage, setHeroMessage] = useState(DEFAULT_WELCOME_MESSAGE)
   const [heroTurn, setHeroTurn] = useState(0)
@@ -240,6 +241,7 @@ export default function ChatHero({ onInputFocusChange, onHardSwipeUp }: ChatHero
 
   const sendMessage = async (content: string) => {
     setVoiceError(null)
+    onConversationStarted?.()
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
