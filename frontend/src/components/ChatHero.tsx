@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from 'react'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { motion } from 'motion/react'
@@ -67,7 +67,12 @@ function normalizeVoiceName(input: string | undefined): VoiceName | undefined {
   return LEGACY_TO_REALTIME_VOICE[normalized]
 }
 
-export default function ChatHero() {
+interface ChatHeroProps {
+  onInputFocusChange?: (focused: boolean) => void
+  onHardSwipeUp?: () => void
+}
+
+export default function ChatHero({ onInputFocusChange, onHardSwipeUp }: ChatHeroProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([createInitialHeroMessage(DEFAULT_WELCOME_MESSAGE)])
   const [heroMessage, setHeroMessage] = useState(DEFAULT_WELCOME_MESSAGE)
   const [heroTurn, setHeroTurn] = useState(0)
@@ -83,6 +88,8 @@ export default function ChatHero() {
   const [voiceOverride, setVoiceOverride] = useState<VoiceName | undefined>(undefined)
   const [sessionId] = useState(() => `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   const [heroViewportHeight, setHeroViewportHeight] = useState<number | null>(null)
+  const touchStartYRef = useRef<number | null>(null)
+  const touchStartAtRef = useRef<number>(0)
 
   useEffect(() => {
     const updateViewportHeight = () => {
@@ -372,10 +379,37 @@ export default function ChatHero() {
     }
   }
 
+  const handleTouchStart = (event: TouchEvent<HTMLElement>) => {
+    if (event.touches.length !== 1) {
+      touchStartYRef.current = null
+      return
+    }
+    touchStartYRef.current = event.touches[0].clientY
+    touchStartAtRef.current = Date.now()
+  }
+
+  const handleTouchEnd = (event: TouchEvent<HTMLElement>) => {
+    if (touchStartYRef.current === null || event.changedTouches.length !== 1) {
+      touchStartYRef.current = null
+      return
+    }
+
+    const deltaY = touchStartYRef.current - event.changedTouches[0].clientY
+    const elapsedMs = Date.now() - touchStartAtRef.current
+    touchStartYRef.current = null
+
+    const isHardSwipeUp = deltaY >= 120 && elapsedMs <= 450
+    if (isHardSwipeUp) {
+      onHardSwipeUp?.()
+    }
+  }
+
   return (
     <section
       className="relative isolate h-[calc(100dvh-78px)] min-h-[calc(100dvh-78px)] overflow-hidden"
       style={heroSectionStyle}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
       <Image
         src={heroImage}
@@ -413,6 +447,7 @@ export default function ChatHero() {
             isLoading={busy}
             onSend={sendMessage}
             onMicClick={handleMicClick}
+            onInputFocusChange={onInputFocusChange}
           />
 
           {voiceError && (

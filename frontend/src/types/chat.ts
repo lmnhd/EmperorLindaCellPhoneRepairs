@@ -33,4 +33,5 @@ export interface HeroInputBarProps {
   disabled?: boolean
   onSend: (message: string) => Promise<void>
   onMicClick: () => void
+  onInputFocusChange?: (focused: boolean) => void
 }

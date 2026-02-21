@@ -5,7 +5,7 @@ import { motion } from 'motion/react'
 import { ArrowUp, Mic } from 'lucide-react'
 import type { HeroInputBarProps } from '@/types/chat'
 
-export default function HeroInputBar({ isLoading, disabled = false, onSend, onMicClick }: HeroInputBarProps) {
+export default function HeroInputBar({ isLoading, disabled = false, onSend, onMicClick, onInputFocusChange }: HeroInputBarProps) {
   const [value, setValue] = useState('')
 
   const canSend = value.trim().length > 0 && !isLoading && !disabled
@@ -37,6 +37,8 @@ export default function HeroInputBar({ isLoading, disabled = false, onSend, onMi
           type="text"
           value={value}
           onChange={(event) => setValue(event.target.value)}
+          onFocus={() => onInputFocusChange?.(true)}
+          onBlur={() => onInputFocusChange?.(false)}
           placeholder="Start typing or click mic to talk"
           disabled={isLoading || disabled}
           className="h-12 flex-1 bg-transparent px-3 text-base text-emperor-cream placeholder:text-emperor-cream/45 focus:outline-none"

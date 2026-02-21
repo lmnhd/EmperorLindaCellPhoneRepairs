@@ -29,10 +29,20 @@ const REVIEWS = [
 export default function LandingPage() {
   const [mounted, setMounted] = useState(false)
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
+  const [isChatInputFocused, setIsChatInputFocused] = useState(false)
+  const [sectionsExpandedBySwipe, setSectionsExpandedBySwipe] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (!isChatInputFocused) {
+      setSectionsExpandedBySwipe(false)
+    }
+  }, [isChatInputFocused])
+
+  const shouldCollapseLowerSections = (isKeyboardOpen || isChatInputFocused) && !sectionsExpandedBySwipe
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -88,9 +98,29 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      <ChatHero />
+      <ChatHero
+        onInputFocusChange={(focused) => {
+          setIsChatInputFocused(focused)
+          if (focused) {
+            setSectionsExpandedBySwipe(false)
+          }
+        }}
+        onHardSwipeUp={() => {
+          if (isChatInputFocused || isKeyboardOpen) {
+            setSectionsExpandedBySwipe(true)
+          }
+        }}
+      />
 
-      {!isKeyboardOpen && (
+      {shouldCollapseLowerSections && (
+        <div className="relative z-10 mx-auto flex max-w-6xl items-center justify-center px-6 pb-3">
+          <div className="rounded-full border border-emperor-gold/25 bg-emperor-charcoal/70 px-3 py-1 text-[10px] font-mono tracking-wide text-emperor-gold/85">
+            Swipe up hard to reveal more
+          </div>
+        </div>
+      )}
+
+      {!shouldCollapseLowerSections && (
         <>
       {/* Services Grid */}
       <section className="relative z-10 max-w-6xl mx-auto px-6 py-20">
