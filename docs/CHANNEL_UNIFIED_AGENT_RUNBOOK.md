@@ -152,6 +152,21 @@ No code deploy on Twilio.
 6. Read-merge-write state persistence causes lost updates under concurrency.
    - Fix: use DynamoDB atomic `UpdateExpression` writes for partial state updates.
 
+### UX Learnings (2026-02-21)
+
+7. Hero chat on mobile must anchor to the visual viewport, not document height.
+   - Fix: size hero shell from `visualViewport` and keep input docked to visible bottom.
+8. Long landing content can fight keyboard behavior during typing.
+   - Fix: collapse lower sections during mobile chat lock and allow reveal only on intentional hard swipe-up.
+9. Chat lock behavior should be mobile-only.
+   - Fix: gate lock/collapse/swipe logic by mobile viewport checks; keep desktop fully expanded.
+10. Greeting sync should never interrupt an active text conversation.
+   - Fix: apply dashboard greeting only before first user turn; never overwrite active flow.
+11. Subtle loading bars can read as visual glitches.
+   - Fix: replace with explicit "LINDA is thinking" state indicator between text turns.
+12. Readability and pacing need to adapt to long responses.
+   - Fix: gradually reduce hero text size and increase typewriter speed as content length grows, with minimum size/speed floors.
+
 ---
 
 ## Change Control Policy

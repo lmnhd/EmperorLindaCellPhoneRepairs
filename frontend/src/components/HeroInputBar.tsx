@@ -1,14 +1,34 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { ArrowUp, Mic } from 'lucide-react'
 import type { HeroInputBarProps } from '@/types/chat'
 
-export default function HeroInputBar({ isLoading, disabled = false, onSend, onMicClick, onInputFocusChange }: HeroInputBarProps) {
+export default function HeroInputBar({
+  isLoading,
+  disabled = false,
+  onSend,
+  onMicClick,
+  onInputFocusChange,
+  focusNonce,
+}: HeroInputBarProps) {
   const [value, setValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const canSend = value.trim().length > 0 && !isLoading && !disabled
+
+  useEffect(() => {
+    if (disabled) {
+      return
+    }
+
+    if (typeof focusNonce !== 'number') {
+      return
+    }
+
+    inputRef.current?.focus({ preventScroll: true })
+  }, [focusNonce, disabled])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -34,6 +54,7 @@ export default function HeroInputBar({ isLoading, disabled = false, onSend, onMi
         className="glass-panel flex items-center gap-2 rounded-full border-emperor-gold/25 bg-emperor-slate/55 px-3 py-3 shadow-2xl shadow-black/40"
       >
         <input
+          ref={inputRef}
           type="text"
           value={value}
           onChange={(event) => setValue(event.target.value)}

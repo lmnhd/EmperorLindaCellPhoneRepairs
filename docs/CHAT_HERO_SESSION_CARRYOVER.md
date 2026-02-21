@@ -48,3 +48,11 @@ You can still adopt Realtime API for voice while keeping continuity by:
 - In-memory session storage means continuity exists while server memory is warm.
 - If process restarts or memory clears, session continuity resets unless persisted.
 - For durable continuity, persist conversation turns to DynamoDB keyed by `sessionId` and rehydrate on request.
+
+## Hero UX learnings (2026-02-21)
+
+- Mobile keyboard anchoring uses visual viewport sizing so the hero input stays docked like a native messenger.
+- Mobile-only chat lock now keeps lower sections collapsed once conversation starts, with intentional hard swipe-up to reveal content.
+- Hero greeting sync no longer overwrites in-progress conversations after the first user turn.
+- Text mode now shows an explicit "LINDA is thinking" indicator between turns.
+- Hero response typography and typewriter speed now adapt to long responses with safe minimum floors.

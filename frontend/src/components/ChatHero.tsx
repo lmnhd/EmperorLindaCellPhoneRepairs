@@ -89,8 +89,14 @@ export default function ChatHero({ onInputFocusChange, onHardSwipeUp, onConversa
   const [voiceOverride, setVoiceOverride] = useState<VoiceName | undefined>(undefined)
   const [sessionId] = useState(() => `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   const [heroViewportHeight, setHeroViewportHeight] = useState<number | null>(null)
+  const [inputFocusNonce, setInputFocusNonce] = useState(0)
   const touchStartYRef = useRef<number | null>(null)
   const touchStartAtRef = useRef<number>(0)
+  const hasConversationStartedRef = useRef(false)
+
+  useEffect(() => {
+    hasConversationStartedRef.current = messages.some((message) => message.role === 'user')
+  }, [messages])
 
   useEffect(() => {
     const updateViewportHeight = () => {
@@ -156,10 +162,20 @@ export default function ChatHero({ onInputFocusChange, onHardSwipeUp, onConversa
           setBrandonNotes(state.notes)
         }
 
-        if (typeof state.greeting === 'string' && state.greeting.trim().length > 0) {
+        if (
+          typeof state.greeting === 'string' &&
+          state.greeting.trim().length > 0 &&
+          !hasConversationStartedRef.current
+        ) {
           const greeting = state.greeting.trim()
           setHeroMessage(greeting)
+
           setMessages((previous) => {
+            const hasUserMessages = previous.some((message) => message.role === 'user')
+            if (hasUserMessages) {
+              return previous
+            }
+
             const initialIndex = previous.findIndex((message) => message.id === 'assistant-initial-hero')
             if (initialIndex === -1) {
               return previous
@@ -290,6 +306,7 @@ export default function ChatHero({ onInputFocusChange, onHardSwipeUp, onConversa
       setMessages((previous) => [...previous, assistantMessage])
       setHeroMessage(safeReply)
       setHeroTurn((current) => current + 1)
+      setInputFocusNonce((current) => current + 1)
     } catch (error: unknown) {
       const fallbackText = error instanceof Error
         ? `Sorry, I hit an issue: ${error.message}`
@@ -305,6 +322,7 @@ export default function ChatHero({ onInputFocusChange, onHardSwipeUp, onConversa
       setMessages((previous) => [...previous, assistantMessage])
       setHeroMessage(fallbackText)
       setHeroTurn((current) => current + 1)
+      setInputFocusNonce((current) => current + 1)
     } finally {
       setIsLoading(false)
     }
@@ -450,6 +468,7 @@ export default function ChatHero({ onInputFocusChange, onHardSwipeUp, onConversa
             onSend={sendMessage}
             onMicClick={handleMicClick}
             onInputFocusChange={onInputFocusChange}
+            focusNonce={inputFocusNonce}
           />
 
           {voiceError && (

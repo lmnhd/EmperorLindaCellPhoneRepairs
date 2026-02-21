@@ -39,6 +39,8 @@ interface ConversationEntry {
   tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]
 }
 
+const CONTEXT_SUMMARY_MARKER = 'CONTEXT_COMPACTION_SUMMARY:'
+
 function extractAssistantContent(message: OpenAI.Chat.Completions.ChatCompletionMessage): string {
   if (typeof message.content === 'string') {
     return message.content.trim()
@@ -68,6 +70,84 @@ function extractAssistantContent(message: OpenAI.Chat.Completions.ChatCompletion
     .trim()
 
   return text
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return String(error)
+}
+
+function isOutputLimitErrorMessage(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('max_tokens') ||
+    normalized.includes('max completion') ||
+    normalized.includes('model output limit') ||
+    normalized.includes('output limit was reached') ||
+    normalized.includes('could not finish the message')
+  )
+}
+
+function compactConversationHistory(history: ConversationEntry[]): ConversationEntry[] {
+  if (history.length <= 30) {
+    return history
+  }
+
+  const systemMessage = history[0]
+  const withoutOldSummary = history.slice(1).filter(
+    (entry) => !(entry.role === 'system' && entry.content.startsWith(CONTEXT_SUMMARY_MARKER)),
+  )
+
+  if (withoutOldSummary.length <= 26) {
+    return [systemMessage, ...withoutOldSummary]
+  }
+
+  const tailWindow = withoutOldSummary.slice(-18)
+  const toSummarize = withoutOldSummary.slice(0, -18)
+
+  const summaryLines = toSummarize
+    .filter((entry) => entry.role === 'user' || entry.role === 'assistant')
+    .slice(-16)
+    .map((entry) => {
+      const label = entry.role === 'user' ? 'USER' : 'ASSISTANT'
+      const compact = entry.content.replace(/\s+/g, ' ').trim()
+      const clipped = compact.length > 160 ? `${compact.slice(0, 157)}...` : compact
+      return `${label}: ${clipped}`
+    })
+
+  if (summaryLines.length === 0) {
+    return [systemMessage, ...tailWindow]
+  }
+
+  const summaryMessage: ConversationEntry = {
+    role: 'system',
+    content: `${CONTEXT_SUMMARY_MARKER}\n${summaryLines.join('\n')}`,
+  }
+
+  return [systemMessage, summaryMessage, ...tailWindow]
+}
+
+function clampReplyLength(reply: string): string {
+  const MAX_REPLY_LENGTH = 420
+  if (reply.length <= MAX_REPLY_LENGTH) {
+    return reply
+  }
+
+  const clipped = reply.slice(0, MAX_REPLY_LENGTH)
+  const lastSentenceBoundary = Math.max(
+    clipped.lastIndexOf('. '),
+    clipped.lastIndexOf('? '),
+    clipped.lastIndexOf('! '),
+  )
+
+  if (lastSentenceBoundary >= 120) {
+    return `${clipped.slice(0, lastSentenceBoundary + 1).trim()}…`
+  }
+
+  return `${clipped.trim()}…`
 }
 
 // ---------------------------------------------------------------------------
@@ -424,6 +504,9 @@ export async function POST(req: NextRequest) {
     while (iterations < MAX_ITERATIONS) {
       iterations++
 
+      history = compactConversationHistory(history)
+      conversations.set(sessionId, history)
+
       // Use faster model for voice channels to reduce latency
       const model = channel === 'text' ? 'gpt-5-mini' : 'gpt-4o-mini'
       const maxTokens = channel === 'text' ? 260 : 150
@@ -441,7 +524,76 @@ export async function POST(req: NextRequest) {
         ...(shouldSendTemperature ? { temperature: assembledConfig.temperature } : {}),
       }
 
-      const completion = await openai.chat.completions.create(completionParams)
+      let completion: OpenAI.Chat.Completions.ChatCompletion
+
+      try {
+        completion = await openai.chat.completions.create(completionParams)
+      } catch (completionError: unknown) {
+        const completionErrorMessage = getErrorMessage(completionError)
+
+        if (!isOutputLimitErrorMessage(completionErrorMessage)) {
+          throw completionError
+        }
+
+        const boostedMaxTokens = channel === 'text' ? 420 : 220
+        const boostedTokenLimitParam = model.startsWith('gpt-5')
+          ? { max_completion_tokens: boostedMaxTokens }
+          : { max_tokens: boostedMaxTokens }
+
+        addAgentDebugEvent({
+          source: 'chat-api',
+          event: 'output_limit_retry',
+          sessionId,
+          data: {
+            model,
+            initialMaxTokens: maxTokens,
+            boostedMaxTokens,
+            error: completionErrorMessage,
+          },
+          timestamp: Date.now(),
+        })
+
+        try {
+          completion = await openai.chat.completions.create({
+            ...completionParams,
+            ...boostedTokenLimitParam,
+          })
+        } catch (boostedCompletionError: unknown) {
+          const boostedMessage = getErrorMessage(boostedCompletionError)
+
+          if (!isOutputLimitErrorMessage(boostedMessage)) {
+            throw boostedCompletionError
+          }
+
+          const fallbackReply = 'Got it — quick summary: I can help with that. Share your phone model and I’ll give you the fastest repair option and price range.'
+
+          history.push({ role: 'assistant' as const, content: fallbackReply })
+
+          addAgentDebugEvent({
+            source: 'chat-api',
+            event: 'output_limit_fallback_reply',
+            sessionId,
+            data: {
+              model,
+              boostedMaxTokens,
+              error: boostedMessage,
+              fallbackReply,
+            },
+            timestamp: Date.now(),
+          })
+
+          return NextResponse.json({
+            reply: fallbackReply,
+            sessionId,
+            persona,
+            brandonState: {
+              status: currentState.status,
+              location: currentState.location,
+              notes: currentState.notes,
+            },
+          })
+        }
+      }
 
       const choice = completion.choices[0]
       const msg = choice.message
@@ -535,6 +687,8 @@ export async function POST(req: NextRequest) {
       if (!reply) {
         reply = "I can help right now—what phone model and repair do you need?"
       }
+
+      reply = clampReplyLength(reply)
 
       history.push({ role: 'assistant' as const, content: reply })
 

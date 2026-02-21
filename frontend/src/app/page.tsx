@@ -28,6 +28,7 @@ const REVIEWS = [
 
 export default function LandingPage() {
   const [mounted, setMounted] = useState(false)
+  const [isMobileView, setIsMobileView] = useState(false)
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
   const [isChatInputFocused, setIsChatInputFocused] = useState(false)
   const [isChatLockActive, setIsChatLockActive] = useState(false)
@@ -48,7 +49,34 @@ export default function LandingPage() {
     }
   }, [isChatInputFocused, isChatLockActive])
 
-  const shouldCollapseLowerSections = (isChatLockActive || isKeyboardOpen || isChatInputFocused) && !sectionsExpandedBySwipe
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const updateMobileView = () => {
+      const mobile = window.innerWidth < 1024
+      setIsMobileView(mobile)
+
+      if (!mobile) {
+        setIsChatLockActive(false)
+        setSectionsExpandedBySwipe(false)
+      }
+    }
+
+    updateMobileView()
+    window.addEventListener('resize', updateMobileView)
+    window.addEventListener('orientationchange', updateMobileView)
+
+    return () => {
+      window.removeEventListener('resize', updateMobileView)
+      window.removeEventListener('orientationchange', updateMobileView)
+    }
+  }, [])
+
+  const mobileChatLockActive = isMobileView && isChatLockActive
+  const mobileInputFocused = isMobileView && isChatInputFocused
+  const shouldCollapseLowerSections = (mobileChatLockActive || isKeyboardOpen || mobileInputFocused) && !sectionsExpandedBySwipe
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -107,16 +135,20 @@ export default function LandingPage() {
       <ChatHero
         onInputFocusChange={(focused) => {
           setIsChatInputFocused(focused)
-          if (focused) {
+          if (focused && isMobileView) {
             setSectionsExpandedBySwipe(false)
           }
         }}
         onConversationStarted={() => {
+          if (!isMobileView) {
+            return
+          }
+
           setIsChatLockActive(true)
           setSectionsExpandedBySwipe(false)
         }}
         onHardSwipeUp={() => {
-          if (isChatInputFocused || isKeyboardOpen || isChatLockActive) {
+          if (isMobileView && (isChatInputFocused || isKeyboardOpen || isChatLockActive)) {
             setSectionsExpandedBySwipe(true)
           }
         }}
