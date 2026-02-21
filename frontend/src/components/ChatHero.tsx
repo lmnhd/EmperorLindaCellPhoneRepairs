@@ -11,7 +11,7 @@ import HeroInputBar from '@/components/HeroInputBar'
 import type { ChatApiResponse, ChatMessage } from '@/types/chat'
 import heroImage from '@/app/public/image/iphone_broke_hero.png'
 
-const DEFAULT_WELCOME_MESSAGE = 'Welcome, need your phone repaired fast?'
+const DEFAULT_WELCOME_MESSAGE = 'Welcome, need you phone fixed fast?'
 
 function createInitialHeroMessage(content: string): ChatMessage {
   return {
@@ -91,6 +91,7 @@ export default function ChatHero() {
           headers: {
             Accept: 'application/json',
           },
+          cache: 'no-store',
         })
 
         if (!response.ok) {
@@ -120,10 +121,18 @@ export default function ChatHero() {
           const greeting = state.greeting.trim()
           setHeroMessage(greeting)
           setMessages((previous) => {
-            if (previous.length === 1 && previous[0]?.id === 'assistant-initial-hero') {
-              return [createInitialHeroMessage(greeting)]
+            const initialIndex = previous.findIndex((message) => message.id === 'assistant-initial-hero')
+            if (initialIndex === -1) {
+              return previous
             }
-            return previous
+
+            const next = [...previous]
+            next[initialIndex] = {
+              ...next[initialIndex],
+              content: greeting,
+              timestamp: new Date(),
+            }
+            return next
           })
         }
 
@@ -141,6 +150,24 @@ export default function ChatHero() {
     }
 
     void loadState()
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void loadState()
+      }
+    }
+
+    const handleFocus = () => {
+      void loadState()
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [])
 
   const busy = useMemo(() => isLoading || isRequestingMic, [isLoading, isRequestingMic])
@@ -152,7 +179,7 @@ export default function ChatHero() {
 
   const voiceHandoffPrompt = useMemo(() => {
     if (!hasConversationHistory) {
-      return 'We are in the same customer session. Start by saying exactly: "Welcome, need your phone repaired fast?"'
+      return `We are in the same customer session. Start by saying exactly: "${heroMessage}"`
     }
 
     const historyWindow = messages.slice(-8)
@@ -167,7 +194,7 @@ export default function ChatHero() {
       'Then continue helping with the same facts, pricing, and policy from this conversation context:',
       serializedHistory,
     ].join('\n')
-  }, [hasConversationHistory, latestAssistantMessage, messages])
+  }, [hasConversationHistory, heroMessage, latestAssistantMessage, messages])
 
   const sendMessage = async (content: string) => {
     setVoiceError(null)

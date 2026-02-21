@@ -42,7 +42,7 @@ function resolveStreamUrl(): string | null {
   return null
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   const streamUrl = resolveStreamUrl()
 
   if (!streamUrl) {
@@ -53,9 +53,26 @@ export async function POST() {
     `)
   }
 
+  const formData = await req.formData()
+  const from = formData.get('From')
+  const callSid = formData.get('CallSid')
+
+  const fromValue = typeof from === 'string' ? from.trim() : ''
+  const callSidValue = typeof callSid === 'string' ? callSid.trim() : ''
+
+  const params: string[] = []
+  if (fromValue.length > 0) {
+    params.push(`<Parameter name="from" value="${escapeXml(fromValue)}" />`)
+  }
+  if (callSidValue.length > 0) {
+    params.push(`<Parameter name="callSid" value="${escapeXml(callSidValue)}" />`)
+  }
+
   return twiml(`
     <Connect>
-      <Stream url="${escapeXml(streamUrl)}" />
+      <Stream url="${escapeXml(streamUrl)}">
+        ${params.join('\n        ')}
+      </Stream>
     </Connect>
   `)
 }

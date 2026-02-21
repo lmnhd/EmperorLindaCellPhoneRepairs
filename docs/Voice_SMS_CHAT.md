@@ -36,6 +36,14 @@
 
 ## Latest Updates (February 2026)
 
+### Channel Governance Runbook (Required)
+
+For EmperorLinda channel parity and one-source-of-truth controls, use:
+
+- `docs/CHANNEL_UNIFIED_AGENT_RUNBOOK.md`
+
+This is the operational standard for keeping web chat, browser voice, phone voice, and SMS behavior synchronized.
+
 ### Channel 4 Added: Browser Voice Chat (WebRTC)
 
 This document now covers **FOUR independent channels** (previously three). The new browser-based voice chat feature provides a modern, cost-effective alternative to phone-based voice interactions.

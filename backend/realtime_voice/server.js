@@ -8,6 +8,8 @@ dotenv.config()
 const PORT = Number(process.env.PORT ?? 5050)
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const FRONTEND_URL = process.env.FRONTEND_URL
+const AGENT_CONFIG_PHONE_URL = process.env.AGENT_CONFIG_PHONE_URL
+const CHAT_LOGS_URL = process.env.CHAT_LOGS_URL
 const DEFAULT_VOICE = process.env.VOICE ?? 'alloy'
 const OPENAI_REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL ?? 'gpt-4o-realtime-preview-2024-12-17'
 
@@ -25,9 +27,9 @@ const REALTIME_SUPPORTED_VOICES = new Set([
 ])
 
 const LEGACY_TO_REALTIME_VOICE_MAP = {
-  nova: 'alloy',
-  onyx: 'echo',
-  fable: 'sage',
+  nova: 'coral',
+  onyx: 'cedar',
+  fable: 'verse',
 }
 
 if (!OPENAI_API_KEY) {
@@ -41,6 +43,18 @@ const CONFIG_TTL_MS = 30 * 1000 // 30 seconds — keeps changes from the dashboa
 let cachedConfig = null
 let cachedConfigAt = 0
 
+function resolveAgentConfigUrl() {
+  if (typeof AGENT_CONFIG_PHONE_URL === 'string' && AGENT_CONFIG_PHONE_URL.trim().length > 0) {
+    return AGENT_CONFIG_PHONE_URL.trim()
+  }
+
+  if (typeof FRONTEND_URL === 'string' && FRONTEND_URL.trim().length > 0) {
+    return `${FRONTEND_URL.trim().replace(/\/$/, '')}/api/agent-config/phone`
+  }
+
+  return null
+}
+
 function buildFallbackConfig() {
   return {
     assistantName: 'LINDA',
@@ -53,6 +67,84 @@ function buildFallbackConfig() {
       'If uncertain, ask one clarifying question and keep the caller engaged.',
     ].join(' '),
     source: 'fallback',
+  }
+}
+
+function resolveChatLogsUrl() {
+  if (typeof CHAT_LOGS_URL === 'string' && CHAT_LOGS_URL.trim().length > 0) {
+    return CHAT_LOGS_URL.trim()
+  }
+
+  if (typeof FRONTEND_URL === 'string' && FRONTEND_URL.trim().length > 0) {
+    return `${FRONTEND_URL.trim().replace(/\/$/, '')}/api/chat-logs`
+  }
+
+  return null
+}
+
+function normalizeTranscriptText(value) {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const text = value.trim()
+  if (text.length === 0) {
+    return null
+  }
+
+  return text
+}
+
+function appendTranscriptMessage(messages, role, content) {
+  const text = normalizeTranscriptText(content)
+  if (!text) {
+    return false
+  }
+
+  const previous = messages[messages.length - 1]
+  if (previous && previous.role === role && previous.content === text) {
+    return false
+  }
+
+  messages.push({
+    role,
+    content: text,
+    timestamp: Math.floor(Date.now() / 1000),
+  })
+
+  return true
+}
+
+async function persistCallTranscript({ sessionId, source, messages }) {
+  const chatLogsUrl = resolveChatLogsUrl()
+  if (!chatLogsUrl) {
+    app.log.warn({ sessionId, source }, 'No chat logs URL configured; skipping Twilio call transcript persistence')
+    return
+  }
+
+  if (!Array.isArray(messages) || messages.length === 0) {
+    app.log.info({ sessionId, source }, 'No transcript messages captured for Twilio call')
+    return
+  }
+
+  const payload = {
+    sessionId,
+    source,
+    messages,
+  }
+
+  const response = await fetch(chatLogsUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(`Chat log persistence failed (${response.status}): ${body.slice(0, 300)}`)
   }
 }
 
@@ -73,13 +165,14 @@ function sanitizeVoice(rawVoice) {
   return fallback
 }
 
-async function loadRuntimeConfig() {
+async function loadRuntimeConfig({ forceRefresh = false } = {}) {
   const now = Date.now()
-  if (cachedConfig && now - cachedConfigAt < CONFIG_TTL_MS) {
+  if (!forceRefresh && cachedConfig && now - cachedConfigAt < CONFIG_TTL_MS) {
     return cachedConfig
   }
 
-  if (!FRONTEND_URL) {
+  const configUrl = resolveAgentConfigUrl()
+  if (!configUrl) {
     const fallback = buildFallbackConfig()
     cachedConfig = fallback
     cachedConfigAt = now
@@ -87,7 +180,7 @@ async function loadRuntimeConfig() {
   }
 
   try {
-    const stateRes = await fetch(`${FRONTEND_URL}/api/agent-config/phone`, {
+    const stateRes = await fetch(configUrl, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     })
@@ -149,9 +242,8 @@ function sendSessionUpdate(openAiWs, config) {
 }
 
 function sendInitialGreeting(openAiWs, assistantName, greeting) {
-  // Use the greeting saved in the dashboard if present; fall back to a generic opener
-  const instructions = greeting
-    ? `Say EXACTLY this greeting, word for word: "${greeting}"`
+  const instructions = typeof greeting === 'string' && greeting.trim().length > 0
+    ? `Say EXACTLY this greeting, word for word: "${greeting.trim()}"`
     : `Greet the caller as ${assistantName} in one short, friendly sentence and ask how you can help.`
 
   const greetingRequest = {
@@ -170,18 +262,19 @@ app.get('/', async () => {
 })
 
 app.get('/health/store-status', async (_request, reply) => {
-  if (!FRONTEND_URL) {
+  const configUrl = resolveAgentConfigUrl()
+  if (!configUrl) {
     return reply.send({
       status: 'ok',
       source: 'fallback',
-      note: 'FRONTEND_URL not set; using fallback relay config only.',
+      note: 'No AGENT_CONFIG_PHONE_URL or FRONTEND_URL configured; using fallback relay config only.',
       timestamp: new Date().toISOString(),
     })
   }
 
   const startedAt = Date.now()
   try {
-    const response = await fetch(`${FRONTEND_URL}/api/state`, {
+    const response = await fetch(configUrl, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     })
@@ -199,8 +292,10 @@ app.get('/health/store-status', async (_request, reply) => {
     const payload = await response.json()
     return reply.send({
       status: 'ok',
+      source: payload?.source ?? 'agent-config-phone',
       latency_ms: latencyMs,
-      state_status: payload?.state?.status ?? null,
+      voice: sanitizeVoice(payload?.voice),
+      persona: payload?.persona ?? null,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
@@ -215,12 +310,58 @@ app.get('/health/store-status', async (_request, reply) => {
 app.register(async (fastify) => {
   fastify.get('/media-stream', { websocket: true }, (twilioSocket) => {
     let streamSid = null
+    let callSid = null
+    let transcriptSource = 'voice-call'
+    let transcriptSessionId = `twilio-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    const transcriptMessages = []
+    const userTranscriptItemIds = new Set()
+    const assistantResponseIds = new Set()
+    let transcriptPersisted = false
     let latestMediaTimestamp = 0
     let responseStartTimestamp = null
     let lastAssistantItemId = null
     let sessionReady = false
     let pendingGreetingAssistantName = null
     let pendingGreeting = null
+
+    const persistTranscriptOnce = async (reason) => {
+      if (transcriptPersisted) {
+        return
+      }
+
+      transcriptPersisted = true
+      try {
+        await persistCallTranscript({
+          sessionId: transcriptSessionId,
+          source: transcriptSource,
+          messages: transcriptMessages,
+        })
+        app.log.info(
+          {
+            reason,
+            streamSid,
+            callSid,
+            sessionId: transcriptSessionId,
+            source: transcriptSource,
+            messageCount: transcriptMessages.length,
+          },
+          'Twilio call transcript persisted',
+        )
+      } catch (error) {
+        app.log.error(
+          {
+            error,
+            reason,
+            streamSid,
+            callSid,
+            sessionId: transcriptSessionId,
+            source: transcriptSource,
+            messageCount: transcriptMessages.length,
+          },
+          'Failed to persist Twilio call transcript',
+        )
+      }
+    }
 
     const openAiWs = new WebSocket(`wss://api.openai.com/v1/realtime?model=${encodeURIComponent(OPENAI_REALTIME_MODEL)}`, {
       headers: {
@@ -230,7 +371,7 @@ app.register(async (fastify) => {
     })
 
     openAiWs.on('open', async () => {
-      const config = await loadRuntimeConfig()
+      const config = await loadRuntimeConfig({ forceRefresh: true })
       app.log.info({ source: config.source, voice: config.voice }, 'OpenAI realtime connected')
       pendingGreetingAssistantName = config.assistantName
       pendingGreeting = config.greeting ?? null
@@ -254,6 +395,48 @@ app.register(async (fastify) => {
 
         if (event.type === 'error') {
           app.log.error({ event }, 'OpenAI realtime error event')
+          return
+        }
+
+        if (event.type === 'conversation.item.input_audio_transcription.completed') {
+          const transcript = normalizeTranscriptText(event.transcript)
+          if (!transcript) {
+            return
+          }
+
+          const itemId = typeof event.item_id === 'string' ? event.item_id : null
+          if (itemId && userTranscriptItemIds.has(itemId)) {
+            return
+          }
+          if (itemId) {
+            userTranscriptItemIds.add(itemId)
+          }
+
+          const appended = appendTranscriptMessage(transcriptMessages, 'user', transcript)
+          if (appended) {
+            app.log.info({ streamSid, callSid, transcript }, '[TwilioVoiceTranscript] user')
+          }
+          return
+        }
+
+        if (event.type === 'response.audio_transcript.done') {
+          const transcript = normalizeTranscriptText(event.transcript)
+          if (!transcript) {
+            return
+          }
+
+          const responseId = typeof event.response_id === 'string' ? event.response_id : null
+          if (responseId && assistantResponseIds.has(responseId)) {
+            return
+          }
+          if (responseId) {
+            assistantResponseIds.add(responseId)
+          }
+
+          const appended = appendTranscriptMessage(transcriptMessages, 'assistant', transcript)
+          if (appended) {
+            app.log.info({ streamSid, callSid, transcript }, '[TwilioVoiceTranscript] assistant')
+          }
           return
         }
 
@@ -315,9 +498,26 @@ app.register(async (fastify) => {
 
         if (message.event === 'start') {
           streamSid = message.start?.streamSid ?? null
+          callSid = message.start?.callSid ?? message.start?.customParameters?.callSid ?? null
+          const fromPhone = normalizeTranscriptText(message.start?.customParameters?.from)
+          transcriptSource = fromPhone ?? (callSid ? `voice-call:${callSid}` : 'voice-call')
+          transcriptSessionId = callSid
+            ? `twilio-${callSid}`
+            : streamSid
+              ? `twilio-${streamSid}`
+              : transcriptSessionId
           latestMediaTimestamp = 0
           responseStartTimestamp = null
           lastAssistantItemId = null
+          app.log.info(
+            {
+              streamSid,
+              callSid,
+              source: transcriptSource,
+              sessionId: transcriptSessionId,
+            },
+            'Twilio stream started',
+          )
           return
         }
 
@@ -341,6 +541,7 @@ app.register(async (fastify) => {
         }
 
         if (message.event === 'stop') {
+          void persistTranscriptOnce('twilio-stop')
           if (openAiWs.readyState === WebSocket.OPEN) {
             openAiWs.close()
           }
@@ -351,6 +552,7 @@ app.register(async (fastify) => {
     })
 
     twilioSocket.on('close', () => {
+      void persistTranscriptOnce('twilio-socket-close')
       if (openAiWs.readyState === WebSocket.OPEN) {
         openAiWs.close()
       }

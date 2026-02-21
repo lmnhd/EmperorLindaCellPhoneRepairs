@@ -17,7 +17,11 @@ This service bridges Twilio Media Streams to OpenAI Realtime API.
 - `PORT` (default `5050`)
 - `VOICE` (default `alloy`)
 - `OPENAI_REALTIME_MODEL` (default `gpt-4o-realtime-preview-2024-12-17`)
-- `FRONTEND_URL` (optional, used to fetch runtime state from `/api/state`)
+- `AGENT_CONFIG_PHONE_URL` (optional, full URL to shared phone config endpoint, e.g. `https://<frontend>/api/agent-config/phone`)
+- `FRONTEND_URL` (optional fallback; relay will call `${FRONTEND_URL}/api/agent-config/phone` when `AGENT_CONFIG_PHONE_URL` is not set)
+- `CHAT_LOGS_URL` (optional, full URL to transcript persistence endpoint; defaults to `${FRONTEND_URL}/api/chat-logs`)
+
+The relay resolves runtime voice/prompt from the same phone config source used by web chat channel assembly so all channels follow one control source.
 
 ## Local run
 ```bash

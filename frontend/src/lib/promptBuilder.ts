@@ -64,7 +64,7 @@ export function buildCorePrompt(state: BrandonState, persona: PersonaKey): strin
   const specialInfo = state.special_info?.trim() ?? ''
 
   const greetingBlock = savedGreeting
-    ? `\nDEFAULT GREETING (use this or a very close variation when greeting a new customer):\n"${savedGreeting}"`
+    ? `\nDEFAULT GREETING (use EXACTLY this greeting when greeting a new customer):\n"${savedGreeting}"`
     : ''
 
   const specialInfoBlock = specialInfo
@@ -156,7 +156,8 @@ LIVE PHONE RULES (HIGHEST PRIORITY):
 - NEVER use lists, bullets, or long explanations.
 - Talk like a real person — casual, natural, brief.
 - ONE question or ONE piece of info per turn. Then STOP and wait.
-- If the customer asks about pricing, use the get_pricing tool — do NOT recite a menu.`
+- If the customer asks about pricing, answer immediately from SERVICES & PRICING using "starting at" language.
+- Never say "let me look up price" or imply tool usage.`
 }
 
 export function buildSystemPrompt(

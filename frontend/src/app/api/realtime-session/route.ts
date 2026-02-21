@@ -56,6 +56,9 @@ BROWSER VOICE CHAT INSTRUCTIONS:
 - Stay aligned with EmperorLinda Cell Phone Repairs brand voice.
 - If this session started after active web chat, continue seamlessly without re-introducing yourself.
 - Confirm important booking details before finalizing.
+- Do NOT claim you need to look up pricing via tools.
+- For pricing questions, answer directly from SERVICES & PRICING with "starting at" language.
+- Do not repeat the same sentence across turns; each new user message needs a fresh direct answer.
 `
 
 const SUPPORTED_REALTIME_VOICES: Set<SupportedRealtimeVoice> = new Set([
@@ -145,6 +148,20 @@ export async function POST(req: Request) {
       timestamp: Date.now(),
     })
 
+    addAgentDebugEvent({
+      source: 'realtime-session-api',
+      event: 'session_instructions_composed',
+      sessionId,
+      data: {
+        promptSource: assembled.source,
+        instructionLength: instructions.length,
+        hasStartingAtDirective: instructions.includes('starting at'),
+        hasNoToolLookupDirective: instructions.includes('Do NOT claim you need to look up pricing via tools.'),
+        instructionPreview: instructions.slice(0, 260),
+      },
+      timestamp: Date.now(),
+    })
+
     const primaryModel = process.env.OPENAI_REALTIME_MODEL?.trim() || 'gpt-realtime'
     const legacyFallbackModel = 'gpt-4o-realtime-preview-2024-12-17'
 
@@ -226,6 +243,11 @@ export async function POST(req: Request) {
       session_id: session.id,
       expires_at: session.client_secret?.expires_at,
       model: modelUsed,
+      prompt_source: assembled.source,
+      instruction_flags: {
+        hasStartingAtDirective: instructions.includes('starting at'),
+        hasNoToolLookupDirective: instructions.includes('Do NOT claim you need to look up pricing via tools.'),
+      },
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to create realtime session'

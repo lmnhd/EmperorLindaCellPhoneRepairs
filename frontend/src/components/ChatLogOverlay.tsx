@@ -57,7 +57,7 @@ function formatTimestamp(unix: number): string {
 
 function sourceLabel(source: string): string {
   if (source === 'web-chat') return 'Landing Page'
-  if (source.startsWith('voice')) return 'Voice Demo'
+  if (source.startsWith('voice')) return 'Voice Call'
   if (source.startsWith('demo')) return 'Live Demo'
   if (source.startsWith('+')) return source
   return source || 'Unknown'

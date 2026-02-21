@@ -70,6 +70,9 @@ export default function VoiceChat({
   const transcriptContainerRef = useRef<HTMLDivElement>(null)
   const hasConnectedRef = useRef(false)
   const lastAssistantTsRef = useRef(0)
+  const sessionIdRef = useRef<string>(sessionId ?? `voice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+  const latestTranscriptRef = useRef<VoiceHistoryEntry[]>([])
+  const hasPersistedTranscriptRef = useRef(false)
 
   const transcript = useMemo(
     () => voice.transcripts.map((entry) => ({ role: entry.role, text: entry.text, timestamp: entry.timestamp })),
@@ -192,6 +195,73 @@ export default function VoiceChat({
   }, [onAssistantMessage, transcript])
 
   useEffect(() => {
+    latestTranscriptRef.current = transcript.map((entry) => ({
+      role: entry.role,
+      content: entry.text,
+      timestamp: entry.timestamp,
+    }))
+  }, [transcript])
+
+  const persistTranscript = useCallback((history: VoiceHistoryEntry[]) => {
+    if (hasPersistedTranscriptRef.current || history.length === 0) {
+      return
+    }
+
+    const messages = history
+      .filter((entry) => entry.content.trim().length > 0)
+      .map((entry) => ({
+        role: entry.role,
+        content: entry.content,
+        timestamp: Math.floor(entry.timestamp / 1000),
+      }))
+
+    if (messages.length === 0) {
+      return
+    }
+
+    hasPersistedTranscriptRef.current = true
+
+    const source = renderMode === 'hero' ? 'voice-web' : 'voice-demo'
+    const payload = {
+      sessionId: sessionIdRef.current,
+      source,
+      messages,
+    }
+
+    console.info('[VoiceTranscriptPersist] saving', {
+      sessionId: sessionIdRef.current,
+      source,
+      count: messages.length,
+    })
+
+    void fetch('/api/chat-logs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+        console.info('[VoiceTranscriptPersist] saved', {
+          sessionId: sessionIdRef.current,
+          source,
+        })
+      })
+      .catch((error: unknown) => {
+        hasPersistedTranscriptRef.current = false
+        console.error('[VoiceTranscriptPersist] failed', {
+          sessionId: sessionIdRef.current,
+          source,
+          error,
+        })
+      })
+  }, [renderMode])
+
+  useEffect(() => {
     if (callState === 'ending') {
       onVoiceStateChange?.('ending')
       return
@@ -217,9 +287,10 @@ export default function VoiceChat({
 
   useEffect(() => {
     return () => {
+      persistTranscript(latestTranscriptRef.current)
       disconnect()
     }
-  }, [disconnect])
+  }, [disconnect, persistTranscript])
 
   const toggleMute = useCallback(() => {
     setIsMuted((previous) => {
@@ -246,12 +317,14 @@ export default function VoiceChat({
       timestamp: entry.timestamp,
     }))
 
+    persistTranscript(history)
+
     disconnect()
 
     setTimeout(() => {
       onEndCall(history)
     }, 700)
-  }, [disconnect, onEndCall, transcript])
+  }, [disconnect, onEndCall, persistTranscript, transcript])
 
   if (renderMode === 'hero') {
     const statusLabel =

@@ -16,15 +16,28 @@ interface ChatApiResponse {
   error?: string
 }
 
-const INITIAL_MESSAGE: ChatMessage = {
-  id: 'welcome',
-  role: 'assistant',
-  content: "Hey! I'm LINDA, your assistant at EmperorLinda Cell Phone Repairs. I can help you book a repair, check availability, or answer questions. What can I do for you?",
-  timestamp: new Date(),
+interface BrandonStatePayload {
+  greeting?: string
+}
+
+interface StateApiResponse {
+  status: string
+  state?: BrandonStatePayload
+}
+
+const DEFAULT_GREETING = 'Welcome, need you phone fixed fast?'
+
+function createInitialMessage(content: string): ChatMessage {
+  return {
+    id: 'welcome',
+    role: 'assistant',
+    content,
+    timestamp: new Date(),
+  }
 }
 
 export default function ChatWidget() {
-  const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE])
+  const [messages, setMessages] = useState<ChatMessage[]>([createInitialMessage(DEFAULT_GREETING)])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [sessionId] = useState(() => `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
@@ -40,6 +53,67 @@ export default function ChatWidget() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    const loadGreeting = async () => {
+      try {
+        const response = await fetch('/api/state', {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+          },
+          cache: 'no-store',
+        })
+
+        if (!response.ok) {
+          return
+        }
+
+        const data = (await response.json()) as StateApiResponse
+        const greeting = data.state?.greeting
+
+        if (typeof greeting === 'string' && greeting.trim().length > 0) {
+          const resolvedGreeting = greeting.trim()
+          setMessages((previous) => {
+            const welcomeIndex = previous.findIndex((message) => message.id === 'welcome')
+            if (welcomeIndex === -1) {
+              return previous
+            }
+
+            const next = [...previous]
+            next[welcomeIndex] = {
+              ...next[welcomeIndex],
+              content: resolvedGreeting,
+              timestamp: new Date(),
+            }
+            return next
+          })
+        }
+      } catch {
+        // Keep default greeting if state fetch fails.
+      }
+    }
+
+    void loadGreeting()
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void loadGreeting()
+      }
+    }
+
+    const handleFocus = () => {
+      void loadGreeting()
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()

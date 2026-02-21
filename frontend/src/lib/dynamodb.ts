@@ -11,9 +11,11 @@ import {
   PutCommand,
   ScanCommand,
   DeleteCommand,
+  UpdateCommand,
   type GetCommandOutput,
   type PutCommandOutput,
   type ScanCommandOutput,
+  type UpdateCommandOutput,
 } from '@aws-sdk/lib-dynamodb'
 
 // ---------------------------------------------------------------------------
@@ -168,45 +170,42 @@ export async function updateBrandonState(
     | 'behavior_rules'
   >>
 ): Promise<BrandonState> {
-  // Fetch current state first (merge approach)
-  const current = await getBrandonState()
+  const updatedAt = Math.floor(Date.now() / 1000)
 
-  const newState: BrandonState = {
-    state_id: 'CURRENT',
-    status: updates.status ?? current.status,
-    location: updates.location ?? current.location,
-    notes: updates.notes ?? current.notes,
-    special_info: updates.special_info ?? current.special_info,
-    voice: updates.voice ?? current.voice,
-    assistant_name: updates.assistant_name ?? current.assistant_name,
-    persona: updates.persona ?? current.persona,
-    greeting: updates.greeting ?? current.greeting,
-    max_discount: updates.max_discount ?? current.max_discount,
-    ai_answers_calls: updates.ai_answers_calls ?? current.ai_answers_calls,
-    ai_answers_sms: updates.ai_answers_sms ?? current.ai_answers_sms,
-    auto_upsell: updates.auto_upsell ?? current.auto_upsell,
-    agent_shared_tone: updates.agent_shared_tone ?? current.agent_shared_tone,
-    agent_shared_response_length: updates.agent_shared_response_length ?? current.agent_shared_response_length,
-    agent_shared_escalation_threshold: updates.agent_shared_escalation_threshold ?? current.agent_shared_escalation_threshold,
-    agent_chat_channel_instructions: updates.agent_chat_channel_instructions ?? current.agent_chat_channel_instructions,
-    agent_chat_full_override: updates.agent_chat_full_override ?? current.agent_chat_full_override,
-    agent_chat_temperature: updates.agent_chat_temperature ?? current.agent_chat_temperature,
-    agent_phone_channel_instructions: updates.agent_phone_channel_instructions ?? current.agent_phone_channel_instructions,
-    agent_phone_full_override: updates.agent_phone_full_override ?? current.agent_phone_full_override,
-    agent_phone_temperature: updates.agent_phone_temperature ?? current.agent_phone_temperature,
-    services_block: updates.services_block ?? current.services_block,
-    behavior_rules: updates.behavior_rules ?? current.behavior_rules,
-    updated_at: Math.floor(Date.now() / 1000),
+  const updateEntries = Object.entries(updates).filter(([, value]) => value !== undefined)
+
+  const expressionAttributeNames: Record<string, string> = {
+    '#updated_at': 'updated_at',
+  }
+  const expressionAttributeValues: Record<string, unknown> = {
+    ':updated_at': updatedAt,
+  }
+  const setExpressions: string[] = ['#updated_at = :updated_at']
+
+  for (const [key, value] of updateEntries) {
+    const nameKey = `#${key}`
+    const valueKey = `:${key}`
+    expressionAttributeNames[nameKey] = key
+    expressionAttributeValues[valueKey] = value
+    setExpressions.push(`${nameKey} = ${valueKey}`)
   }
 
-  await docClient.send(
-    new PutCommand({
+  const result: UpdateCommandOutput = await docClient.send(
+    new UpdateCommand({
       TableName: STATE_TABLE,
-      Item: newState,
+      Key: { state_id: 'CURRENT' },
+      UpdateExpression: `SET ${setExpressions.join(', ')}`,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ReturnValues: 'ALL_NEW',
     })
   )
 
-  return newState
+  if (result.Attributes) {
+    return result.Attributes as BrandonState
+  }
+
+  return getBrandonState()
 }
 
 // ---------------------------------------------------------------------------

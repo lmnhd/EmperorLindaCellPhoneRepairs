@@ -15,6 +15,11 @@ interface RealtimeSessionResponse {
   session_id?: string
   expires_at?: number
   model?: string
+  prompt_source?: string
+  instruction_flags?: {
+    hasStartingAtDirective?: boolean
+    hasNoToolLookupDirective?: boolean
+  }
   error?: string
   detail?: string
 }
@@ -73,6 +78,7 @@ export function useVoiceChat(): UseVoiceChatResult {
   const assistantTranscriptBufferRef = useRef<Map<string, string>>(new Map())
   const isCleaningRef = useRef(false)
   const connectAttemptRef = useRef(0)
+  const activeSessionIdRef = useRef<string | undefined>(undefined)
 
   const logVoiceDebug = useCallback((event: string, sessionId: string | undefined, data?: Record<string, unknown>) => {
     const payload: DebugVoiceEvent = {
@@ -159,6 +165,12 @@ export function useVoiceChat(): UseVoiceChatResult {
   const appendTranscript = useCallback((role: 'user' | 'assistant', text: string) => {
     const trimmed = text.trim()
     if (!trimmed) return
+
+    console.info('[VoiceTranscript]', {
+      role,
+      text: trimmed,
+      timestamp: Date.now(),
+    })
 
     setTranscripts((previous) => [
       ...previous,
@@ -251,6 +263,7 @@ export function useVoiceChat(): UseVoiceChatResult {
     }
 
     const effectiveSessionId = options?.sessionId
+    activeSessionIdRef.current = effectiveSessionId
 
     setStatus('connecting')
     setError(null)
@@ -305,6 +318,8 @@ export function useVoiceChat(): UseVoiceChatResult {
       logVoiceDebug('session_initialized', effectiveSessionId, {
         model: sessionData.model,
         hasClientSecret: Boolean(ephemeralKey),
+        promptSource: sessionData.prompt_source,
+        instructionFlags: sessionData.instruction_flags,
       })
 
       if (!ephemeralKey) {
@@ -410,7 +425,7 @@ export function useVoiceChat(): UseVoiceChatResult {
       const kickoffMessage = options?.initialAssistantMessage?.trim()
       const kickoffInstruction = kickoffMessage
         ? `Speak exactly this message and nothing else: "${kickoffMessage}". Do not add extra words. Do not ask any new questions.`
-        : `${options?.handoffPrompt?.trim() || 'Continue the active session context only.'}\nDo not ask any new questions in this kickoff response.`
+        : `${options?.handoffPrompt?.trim() || 'Start by saying exactly the configured default greeting from system instructions.'}\nDo not ask any new questions in this kickoff response.`
 
       const kickoffEvent = {
         type: 'response.create',
@@ -461,7 +476,8 @@ export function useVoiceChat(): UseVoiceChatResult {
     teardown()
     setStatus('idle')
     setError(null)
-    logVoiceDebug('disconnect', undefined)
+    logVoiceDebug('disconnect', activeSessionIdRef.current)
+    activeSessionIdRef.current = undefined
   }, [logVoiceDebug, teardown])
 
   const clearTranscripts = useCallback(() => {

@@ -1,5 +1,7 @@
 # Chat Hero Session Carryover (Text → Voice)
 
+> Governance note: For multi-channel parity and single-source agent controls across web, phone, voice, and SMS, follow `docs/CHANNEL_UNIFIED_AGENT_RUNBOOK.md`.
+
 This document describes how this repo now preserves conversation continuity when switching from the Hero text chat into voice mode.
 
 ## What was implemented

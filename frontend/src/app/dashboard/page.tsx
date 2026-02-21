@@ -237,7 +237,7 @@ export default function DashboardPage() {
     aiAnswersSms:   true,
     autoUpsell:     true,
     maxDiscount:    15,
-    greeting:       "Hey! Thanks for reaching out to EmperorLinda Cell Phone Repairs. How can I help you today?",
+    greeting:       "Welcome, need you phone fixed fast?",
     specialInfo:    '',
     voice:          'coral',
     assistantName:  'Linda',
