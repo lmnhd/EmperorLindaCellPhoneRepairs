@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import {
   Smartphone,
@@ -235,6 +235,9 @@ export default function DashboardPage() {
   const [leadsLoading, setLeadsLoading] = useState(true)
   const [chatLogOpen,  setChatLogOpen]  = useState(false)
   const [isMobile,     setIsMobile]     = useState(false)
+  const hasLoadedInitialStateRef = useRef(false)
+  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isSavingRef = useRef(false)
 
   const DEFAULT_SERVICE_LINES = [
     'Screen replacement: starting at $79 (iPhone), $89 (Samsung)',
@@ -371,6 +374,9 @@ export default function DashboardPage() {
           }))
         }
       } catch { /* silent */ }
+      finally {
+        hasLoadedInitialStateRef.current = true
+      }
     }
     load()
   }, [])
@@ -381,7 +387,12 @@ export default function DashboardPage() {
     setStatusSaved(false)
   }
 
-  const handleSaveStatus = async () => {
+  const handleSaveStatus = async (silent = false) => {
+    if (isSavingRef.current) {
+      return
+    }
+
+    isSavingRef.current = true
     setStatusSaving(true)
     setStatusSaved(false)
     try {
@@ -417,12 +428,38 @@ export default function DashboardPage() {
       if (!stateRes.ok) throw new Error('Failed to save state')
       setStatusSaved(true)
       setTimeout(() => setStatusSaved(false), 3000)
-    } catch {
-      alert('Failed to save settings. Check console for details.')
+    } catch (error) {
+      if (!silent) {
+        alert('Failed to save settings. Check console for details.')
+      }
+      console.error('Failed to save dashboard settings:', error)
     } finally {
+      isSavingRef.current = false
       setStatusSaving(false)
     }
   }
+
+  useEffect(() => {
+    if (!hasLoadedInitialStateRef.current) {
+      return
+    }
+
+    setStatusSaved(false)
+
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current)
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      void handleSaveStatus(true)
+    }, 900)
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+      }
+    }
+  }, [currentStatus, location, notes, config])
 
   return (
     <main className="min-h-screen bg-emperor-black">
@@ -697,7 +734,7 @@ export default function DashboardPage() {
 
                 <div className="mt-6">
                   <button
-                    onClick={handleSaveStatus}
+                    onClick={() => void handleSaveStatus(false)}
                     disabled={statusSaving}
                     className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
                       statusSaved
@@ -712,7 +749,7 @@ export default function DashboardPage() {
                       : <><Save className="w-4 h-4" /> Save Brandon Settings</>}
                   </button>
                   <p className="text-[10px] text-emperor-cream/20 font-mono text-center mt-2">
-                    Saves status, identity &amp; AI settings to DynamoDB
+                    Auto-save is enabled. Manual save is optional.
                   </p>
                 </div>
               </Panel>
