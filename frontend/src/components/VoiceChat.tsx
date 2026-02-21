@@ -11,7 +11,7 @@ import {
 import { useVoiceChat } from '@/hooks/useVoiceChat'
 
 type PersonaKey = 'laidback' | 'professional' | 'hustler'
-type VoiceName = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
+type VoiceName = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimmer' | 'verse' | 'marin' | 'cedar' | 'fable' | 'onyx' | 'nova'
 type CallState = 'calling' | 'connected' | 'ending'
 
 interface VoiceHistoryEntry {

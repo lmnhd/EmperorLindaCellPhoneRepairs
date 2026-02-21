@@ -6,10 +6,41 @@ import OpenAI from 'openai'
 // ---------------------------------------------------------------------------
 
 type VoiceName = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
+type RealtimeVoiceName = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimmer' | 'verse' | 'marin' | 'cedar'
+type AnyVoiceName = VoiceName | RealtimeVoiceName
 
 interface TTSRequestBody {
   text: string
-  voice?: VoiceName
+  voice?: AnyVoiceName
+}
+
+const REALTIME_TO_TTS_VOICE_MAP: Record<RealtimeVoiceName, VoiceName> = {
+  alloy: 'alloy',
+  ash: 'alloy',
+  ballad: 'alloy',
+  coral: 'nova',
+  echo: 'echo',
+  sage: 'echo',
+  shimmer: 'shimmer',
+  verse: 'fable',
+  marin: 'alloy',
+  cedar: 'onyx',
+}
+
+function normalizeTtsVoice(input: AnyVoiceName | undefined): VoiceName {
+  if (!input) return 'onyx'
+
+  const normalized = input.trim().toLowerCase() as AnyVoiceName
+
+  if (normalized in REALTIME_TO_TTS_VOICE_MAP) {
+    return REALTIME_TO_TTS_VOICE_MAP[normalized as RealtimeVoiceName]
+  }
+
+  if (normalized === 'alloy' || normalized === 'echo' || normalized === 'fable' || normalized === 'onyx' || normalized === 'nova' || normalized === 'shimmer') {
+    return normalized
+  }
+
+  return 'onyx'
 }
 
 // ---------------------------------------------------------------------------
@@ -39,7 +70,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const voice: VoiceName = body.voice ?? 'onyx'
+    const voice: VoiceName = normalizeTtsVoice(body.voice)
 
     const mp3Response = await openai.audio.speech.create({
       model: 'tts-1',

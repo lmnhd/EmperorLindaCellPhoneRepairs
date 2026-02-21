@@ -72,7 +72,7 @@ const SUPPORTED_REALTIME_VOICES: Set<SupportedRealtimeVoice> = new Set([
 ])
 
 const LEGACY_VOICE_MAP: Record<string, SupportedRealtimeVoice> = {
-  nova: 'alloy',
+  nova: 'coral',
   onyx: 'cedar',
   fable: 'verse',
 }

@@ -25,7 +25,7 @@ interface ConnectOptions {
   brandonStatus?: string
   brandonLocation?: string
   brandonNotes?: string
-  voiceOverride?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
+  voiceOverride?: 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimmer' | 'verse' | 'marin' | 'cedar' | 'fable' | 'onyx' | 'nova'
   handoffPrompt?: string
   initialAssistantMessage?: string
 }
@@ -409,15 +409,15 @@ export function useVoiceChat(): UseVoiceChatResult {
 
       const kickoffMessage = options?.initialAssistantMessage?.trim()
       const kickoffInstruction = kickoffMessage
-        ? `We already started this conversation in text. Start speaking immediately with this exact continuation message in one short natural sentence: "${kickoffMessage}". Then continue helping without re-introducing yourself.`
-        : options?.handoffPrompt?.trim() ||
-          'Start speaking immediately with a warm one-sentence greeting and ask how you can help with the repair.'
+        ? `Speak exactly this message and nothing else: "${kickoffMessage}". Do not add extra words. Do not ask any new questions.`
+        : `${options?.handoffPrompt?.trim() || 'Continue the active session context only.'}\nDo not ask any new questions in this kickoff response.`
 
       const kickoffEvent = {
         type: 'response.create',
         response: {
           modalities: ['audio', 'text'],
           instructions: kickoffInstruction,
+          max_output_tokens: 80,
         },
       }
 

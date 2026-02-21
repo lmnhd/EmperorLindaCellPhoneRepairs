@@ -11,19 +11,21 @@ import HeroInputBar from '@/components/HeroInputBar'
 import type { ChatApiResponse, ChatMessage } from '@/types/chat'
 import heroImage from '@/app/public/image/iphone_broke_hero.png'
 
-const WELCOME_MESSAGE = 'Welcome, need your phone repaired fast?'
+const DEFAULT_WELCOME_MESSAGE = 'Welcome, need your phone repaired fast?'
 
-const INITIAL_HERO_MESSAGE: ChatMessage = {
-  id: 'assistant-initial-hero',
-  role: 'assistant',
-  content: WELCOME_MESSAGE,
-  timestamp: new Date(),
+function createInitialHeroMessage(content: string): ChatMessage {
+  return {
+    id: 'assistant-initial-hero',
+    role: 'assistant',
+    content,
+    timestamp: new Date(),
+  }
 }
 
 const VoiceChat = dynamic(() => import('./VoiceChat'), { ssr: false })
 
 type PersonaKey = 'laidback' | 'professional' | 'hustler'
-type VoiceName = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
+type VoiceName = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimmer' | 'verse' | 'marin' | 'cedar'
 
 interface BrandonStatePayload {
   status?: string
@@ -31,6 +33,7 @@ interface BrandonStatePayload {
   notes?: string
   persona?: string
   voice?: string
+  greeting?: string
 }
 
 interface StateApiResponse {
@@ -45,11 +48,28 @@ interface VoiceHistoryEntry {
 }
 
 const VALID_PERSONAS: PersonaKey[] = ['laidback', 'professional', 'hustler']
-const VALID_VOICES: VoiceName[] = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+const VALID_VOICES: VoiceName[] = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse', 'marin', 'cedar']
+
+const LEGACY_TO_REALTIME_VOICE: Record<string, VoiceName> = {
+  nova: 'coral',
+  onyx: 'cedar',
+  fable: 'verse',
+}
+
+function normalizeVoiceName(input: string | undefined): VoiceName | undefined {
+  if (!input) return undefined
+
+  const normalized = input.trim().toLowerCase()
+  if (VALID_VOICES.includes(normalized as VoiceName)) {
+    return normalized as VoiceName
+  }
+
+  return LEGACY_TO_REALTIME_VOICE[normalized]
+}
 
 export default function ChatHero() {
-  const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_HERO_MESSAGE])
-  const [heroMessage, setHeroMessage] = useState(WELCOME_MESSAGE)
+  const [messages, setMessages] = useState<ChatMessage[]>([createInitialHeroMessage(DEFAULT_WELCOME_MESSAGE)])
+  const [heroMessage, setHeroMessage] = useState(DEFAULT_WELCOME_MESSAGE)
   const [heroTurn, setHeroTurn] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [isRequestingMic, setIsRequestingMic] = useState(false)
@@ -96,12 +116,24 @@ export default function ChatHero() {
           setBrandonNotes(state.notes)
         }
 
+        if (typeof state.greeting === 'string' && state.greeting.trim().length > 0) {
+          const greeting = state.greeting.trim()
+          setHeroMessage(greeting)
+          setMessages((previous) => {
+            if (previous.length === 1 && previous[0]?.id === 'assistant-initial-hero') {
+              return [createInitialHeroMessage(greeting)]
+            }
+            return previous
+          })
+        }
+
         if (typeof state.persona === 'string' && VALID_PERSONAS.includes(state.persona as PersonaKey)) {
           setPersona(state.persona as PersonaKey)
         }
 
-        if (typeof state.voice === 'string' && VALID_VOICES.includes(state.voice as VoiceName)) {
-          setVoiceOverride(state.voice as VoiceName)
+        const normalizedVoice = normalizeVoiceName(typeof state.voice === 'string' ? state.voice : undefined)
+        if (normalizedVoice) {
+          setVoiceOverride(normalizedVoice)
         }
       } catch {
         // Keep defaults when state fetch fails.
@@ -115,8 +147,8 @@ export default function ChatHero() {
   const hasConversationHistory = messages.some((message) => message.role === 'user')
   const latestAssistantMessage = useMemo(() => {
     const latest = [...messages].reverse().find((message) => message.role === 'assistant')
-    return latest?.content ?? WELCOME_MESSAGE
-  }, [messages])
+    return latest?.content ?? heroMessage
+  }, [messages, heroMessage])
 
   const voiceHandoffPrompt = useMemo(() => {
     if (!hasConversationHistory) {

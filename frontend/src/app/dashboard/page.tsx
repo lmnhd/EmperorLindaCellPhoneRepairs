@@ -38,7 +38,7 @@ import AgentPromptControlPanel from '@/components/AgentPromptControlPanel'
 
 type DashboardTab = 'brandon' | 'leads' | 'agent'
 type StatusMode = 'working' | 'gym' | 'driving' | 'break' | 'sleeping' | 'custom'
-type VoiceName = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
+type VoiceName = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimmer' | 'verse' | 'marin' | 'cedar'
 type Gender = 'male' | 'female' | 'neutral'
 
 interface VoiceOption {
@@ -55,12 +55,16 @@ interface AssistantNameOption {
 }
 
 const ALL_VOICE_OPTIONS: VoiceOption[] = [
-  { value: 'onyx',    label: 'Onyx',    description: 'Deep, warm  chill vibe',        gender: 'male'    },
-  { value: 'echo',    label: 'Echo',    description: 'Smooth, energetic  closer',      gender: 'male'    },
-  { value: 'fable',   label: 'Fable',   description: 'Warm, narrative  storyteller',   gender: 'male'    },
-  { value: 'nova',    label: 'Nova',    description: 'Bright, polished  professional', gender: 'female'  },
-  { value: 'shimmer', label: 'Shimmer', description: 'Clear, expressive  friendly',    gender: 'female'  },
+  { value: 'cedar',   label: 'Cedar',   description: 'Deep, grounded  confident',      gender: 'male'    },
+  { value: 'verse',   label: 'Verse',   description: 'Warm, narrative  conversational',gender: 'male'    },
+  { value: 'echo',    label: 'Echo',    description: 'Energetic, clear  direct',       gender: 'neutral' },
+  { value: 'coral',   label: 'Coral',   description: 'Bright, polished  welcoming',    gender: 'female'  },
+  { value: 'shimmer', label: 'Shimmer', description: 'Friendly, expressive  upbeat',   gender: 'female'  },
   { value: 'alloy',   label: 'Alloy',   description: 'Balanced, versatile  neutral',   gender: 'neutral' },
+  { value: 'ash',     label: 'Ash',     description: 'Calm, clean  minimal',            gender: 'neutral' },
+  { value: 'ballad',  label: 'Ballad',  description: 'Smooth, modern  polished',        gender: 'neutral' },
+  { value: 'sage',    label: 'Sage',    description: 'Steady, practical  reassuring',   gender: 'neutral' },
+  { value: 'marin',   label: 'Marin',   description: 'Crisp, balanced  professional',  gender: 'neutral' },
 ]
 
 const ASSISTANT_NAMES: AssistantNameOption[] = [
@@ -79,9 +83,27 @@ const PERSONA_OPTIONS = [
 ]
 
 const DEFAULT_VOICE_FOR_GENDER: Record<Gender, VoiceName> = {
-  female:  'nova',
-  male:    'onyx',
+  female:  'coral',
+  male:    'cedar',
   neutral: 'alloy',
+}
+
+const LEGACY_TO_REALTIME_VOICE: Record<string, VoiceName> = {
+  nova: 'coral',
+  onyx: 'cedar',
+  fable: 'verse',
+}
+
+function normalizeVoiceName(input: string | undefined): VoiceName | undefined {
+  if (!input) return undefined
+
+  const normalized = input.trim().toLowerCase()
+  const direct = ALL_VOICE_OPTIONS.find((voice) => voice.value === normalized)
+  if (direct) {
+    return direct.value
+  }
+
+  return LEGACY_TO_REALTIME_VOICE[normalized]
 }
 
 function getVoicesForGender(gender: Gender): VoiceOption[] {
@@ -217,7 +239,7 @@ export default function DashboardPage() {
     maxDiscount:    15,
     greeting:       "Hey! Thanks for reaching out to EmperorLinda Cell Phone Repairs. How can I help you today?",
     specialInfo:    '',
-    voice:          'nova',
+    voice:          'coral',
     assistantName:  'Linda',
     persona:        'professional',
     servicesBlock:  DEFAULT_SERVICES_BLOCK,
@@ -298,12 +320,13 @@ export default function DashboardPage() {
 
         if (stateData?.status === 'success' && stateData.state) {
           const s = stateData.state
+          const normalizedVoice = normalizeVoiceName(typeof s.voice === 'string' ? s.voice : undefined)
           if (s.status && s.status in STATUS_OPTIONS) setCurrentStatus(s.status as StatusMode)
           if (s.notes)    setNotes(s.notes)
           if (s.location) setLocation(s.location)
           setConfig(prev => ({
             ...prev,
-            voice:          s.voice              || prev.voice,
+            voice:          normalizedVoice      || prev.voice,
             assistantName:  s.assistant_name     || prev.assistantName,
             // agent_shared_tone is source of truth; fall back to state.persona
             persona:        agentTone            || s.persona || prev.persona,
