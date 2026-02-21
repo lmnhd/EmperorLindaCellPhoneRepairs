@@ -207,7 +207,7 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[10px] uppercase tracking-widest text-emperor-cream/30 font-mono mb-2">{children}</p>
+    <p className="text-[10px] uppercase tracking-widest text-emperor-cream/60 sm:text-emperor-cream/30 font-mono mb-2">{children}</p>
   )
 }
 
@@ -565,7 +565,7 @@ export default function DashboardPage() {
                 <PanelHeader
                   icon={Zap}
                   title="Your Status"
-                  aside={<span className="text-[10px] font-mono text-emperor-cream/20">tells LINDA how to respond</span>}
+                  aside={<span className="text-[10px] font-mono text-emperor-cream/65 sm:text-emperor-cream/20">tells LINDA how to respond</span>}
                 />
                 <div className="grid grid-cols-3 gap-2 mb-5">
                   {(Object.keys(STATUS_OPTIONS) as StatusMode[]).map((mode) => {
@@ -602,7 +602,7 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <FieldLabel>Operational Hours</FieldLabel>
-                        <p className="text-[11px] text-emperor-cream/35 font-mono">Optional scheduling window for the agent.</p>
+                        <p className="text-[11px] text-emperor-cream/65 sm:text-emperor-cream/35 font-mono">Optional scheduling window for the agent.</p>
                       </div>
                       <Toggle
                         on={operationalHoursEnabled}
@@ -614,7 +614,7 @@ export default function DashboardPage() {
                     </div>
 
                     {operationalHoursEnabled ? (
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <div>
                           <FieldLabel>Open Time</FieldLabel>
                           <input
@@ -624,7 +624,7 @@ export default function DashboardPage() {
                               setOperationalOpenTime(e.target.value)
                               setStatusSaved(false)
                             }}
-                            className="input-emperor !py-2.5 text-sm"
+                            className="input-emperor !py-2 text-xs sm:!py-2.5 sm:text-sm"
                           />
                         </div>
                         <div>
@@ -636,12 +636,12 @@ export default function DashboardPage() {
                               setOperationalCloseTime(e.target.value)
                               setStatusSaved(false)
                             }}
-                            className="input-emperor !py-2.5 text-sm"
+                            className="input-emperor !py-2 text-xs sm:!py-2.5 sm:text-sm"
                           />
                         </div>
                       </div>
                     ) : (
-                      <div className="rounded-lg border border-emperor-cream/10 bg-emperor-cream/5 px-3 py-2 text-[11px] text-emperor-cream/45 font-mono">
+                      <div className="rounded-lg border border-emperor-cream/10 bg-emperor-cream/5 px-3 py-2 text-[11px] text-emperor-cream/70 sm:text-emperor-cream/45 font-mono">
                         Disabled — agent has no hour limits unless status/rules block scheduling.
                       </div>
                     )}
@@ -668,15 +668,15 @@ export default function DashboardPage() {
                     className="input-emperor text-sm resize-none h-20"
                     placeholder="What LINDA says when a customer first reaches out..."
                   />
-                  <p className="text-[11px] text-emperor-cream/20 mt-1.5 font-mono">LINDA&apos;s opening line for new conversations.</p>
+                  <p className="text-[11px] text-emperor-cream/65 sm:text-emperor-cream/20 mt-1.5 font-mono">LINDA&apos;s opening line for new conversations.</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <Bell className="w-4 h-4 text-emperor-gold" />
                     <h2 className="font-display font-semibold text-sm text-emperor-cream/80">Live Context</h2>
-                    <span className="text-[10px] font-mono text-emperor-cream/30 ml-auto">optional</span>
+                    <span className="text-[10px] font-mono text-emperor-cream/60 sm:text-emperor-cream/30 ml-auto">optional</span>
                   </div>
-                  <p className="text-[11px] text-emperor-cream/20 mb-2 font-mono">
+                  <p className="text-[11px] text-emperor-cream/65 sm:text-emperor-cream/20 mb-2 font-mono">
                     Deals, closures, new parts  anything LINDA should know right now.
                   </p>
                   <textarea
@@ -685,7 +685,7 @@ export default function DashboardPage() {
                     className="input-emperor text-sm resize-none h-20"
                     placeholder=" 20% off screen repairs this week!&#10; Closed Saturday&#10; New Samsung parts in"
                   />
-                  <p className="text-[11px] text-emperor-cream/20 mt-1.5 font-mono">LINDA weaves this in naturally  won&apos;t read verbatim.</p>
+                  <p className="text-[11px] text-emperor-cream/65 sm:text-emperor-cream/20 mt-1.5 font-mono">LINDA weaves this in naturally  won&apos;t read verbatim.</p>
                 </div>
               </Panel>
             </div>
@@ -745,7 +745,7 @@ export default function DashboardPage() {
                       </div>
                     ))}
                   </div>
-                  <p className="text-[10px] text-emperor-cream/20 mt-1.5 font-mono">
+                  <p className="text-[10px] text-emperor-cream/65 sm:text-emperor-cream/20 mt-1.5 font-mono">
                     {selectedNameConfig.gender === 'neutral' ? 'All voices available' : `${selectedNameConfig.gender} + neutral voices`}  same for calls &amp; web
                   </p>
                 </div>
@@ -767,7 +767,7 @@ export default function DashboardPage() {
                       </ChipButton>
                     ))}
                   </div>
-                  <p className="text-[10px] text-emperor-cream/20 mt-1.5 font-mono">Saved here → syncs Agent Control Tone automatically.</p>
+                  <p className="text-[10px] text-emperor-cream/65 sm:text-emperor-cream/20 mt-1.5 font-mono">Saved here → syncs Agent Control Tone automatically.</p>
                 </div>
               </Panel>
 
@@ -804,7 +804,7 @@ export default function DashboardPage() {
                       onChange={(e) => { setConfig(prev => ({ ...prev, maxDiscount: parseInt(e.target.value) })); setStatusSaved(false) }}
                       className="w-full accent-emperor-gold h-1.5 rounded-full appearance-none bg-emperor-smoke cursor-pointer"
                     />
-                    <div className="flex justify-between text-[10px] text-emperor-cream/20 font-mono mt-1">
+                    <div className="flex justify-between text-[10px] text-emperor-cream/65 sm:text-emperor-cream/20 font-mono mt-1">
                       <span>0%</span><span>25%</span>
                     </div>
                   </div>
@@ -826,7 +826,7 @@ export default function DashboardPage() {
                       ? <><CheckCircle className="w-4 h-4" /> All Settings Saved!</>
                       : <><Save className="w-4 h-4" /> Save Brandon Settings</>}
                   </button>
-                  <p className="text-[10px] text-emperor-cream/20 font-mono text-center mt-2">
+                  <p className="text-[10px] text-emperor-cream/65 sm:text-emperor-cream/20 font-mono text-center mt-2">
                     Auto-save is enabled. Manual save is optional.
                   </p>
                 </div>
@@ -842,7 +842,7 @@ export default function DashboardPage() {
                   title="Services &amp; Pricing"
                   aside={<span className="text-[10px] font-mono text-emperor-gold/40 border border-emperor-gold/20 rounded px-1.5 py-0.5">{config.serviceLines.length} items active</span>}
                 />
-                <p className="text-[11px] text-emperor-cream/25 font-mono mb-3">
+                <p className="text-[11px] text-emperor-cream/60 sm:text-emperor-cream/25 font-mono mb-3">
                   Add, edit, or remove services. LINDA quotes from this list on every call and chat.
                 </p>
 
@@ -908,7 +908,7 @@ export default function DashboardPage() {
 
                 <button
                   onClick={() => { setConfig(prev => ({ ...prev, serviceLines: DEFAULT_SERVICE_LINES })); setStatusSaved(false) }}
-                  className="mt-3 text-[10px] font-mono text-emperor-cream/20 hover:text-emperor-gold/60 transition-colors"
+                  className="mt-3 text-[10px] font-mono text-emperor-cream/65 sm:text-emperor-cream/20 hover:text-emperor-gold/60 transition-colors"
                 >
                   ↺ reset to defaults
                 </button>
@@ -927,7 +927,7 @@ export default function DashboardPage() {
                 <div key={stat.label} className="glass-panel p-5">
                   <div className="flex items-center gap-2 mb-2">
                     <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                    <span className="text-xs text-emperor-cream/40 font-mono">{stat.label}</span>
+                    <span className="text-xs text-emperor-cream/70 sm:text-emperor-cream/40 font-mono">{stat.label}</span>
                   </div>
                   <span className="font-display text-4xl font-bold text-emperor-cream">{stat.value}</span>
                 </div>
@@ -941,7 +941,7 @@ export default function DashboardPage() {
                   Lead Feed
                 </h2>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-emperor-cream/30 font-mono">auto-refresh  15 s</span>
+                  <span className="text-xs text-emperor-cream/60 sm:text-emperor-cream/30 font-mono">auto-refresh  15 s</span>
                   <button
                     onClick={() => setChatLogOpen(true)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emperor-cream/10 text-emperor-cream/40 hover:text-emperor-gold hover:border-emperor-gold/30 text-xs font-mono transition-colors"
@@ -1031,7 +1031,7 @@ export default function DashboardPage() {
                             }`}>
                               {(lead.status || 'pending').toUpperCase()}
                             </span>
-                            <span className="ml-auto text-[10px] text-emperor-cream/20 font-mono shrink-0">
+                            <span className="ml-auto text-[10px] text-emperor-cream/65 sm:text-emperor-cream/20 font-mono shrink-0">
                               {lead.lead_id}
                             </span>
                           </div>
