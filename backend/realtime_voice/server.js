@@ -10,6 +10,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const FRONTEND_URL = process.env.FRONTEND_URL
 const AGENT_CONFIG_PHONE_URL = process.env.AGENT_CONFIG_PHONE_URL
 const CHAT_LOGS_URL = process.env.CHAT_LOGS_URL
+const LEADS_URL = process.env.LEADS_URL
 const DEFAULT_VOICE = process.env.VOICE ?? 'alloy'
 const OPENAI_REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL ?? 'gpt-4o-realtime-preview-2024-12-17'
 
@@ -80,6 +81,81 @@ function resolveChatLogsUrl() {
   }
 
   return null
+}
+
+function resolveLeadsUrl() {
+  if (typeof LEADS_URL === 'string' && LEADS_URL.trim().length > 0) {
+    return LEADS_URL.trim()
+  }
+
+  if (typeof FRONTEND_URL === 'string' && FRONTEND_URL.trim().length > 0) {
+    return `${FRONTEND_URL.trim().replace(/\/$/, '')}/api/leads`
+  }
+
+  return null
+}
+
+function inferCustomerName(messages) {
+  const userMessages = messages.filter((message) => message.role === 'user')
+  for (const message of userMessages) {
+    const text = typeof message.content === 'string' ? message.content : ''
+    const match = text.match(/(?:my name is|this is|i am|i'm)\s+([A-Za-z][A-Za-z\-']{1,30}(?:\s+[A-Za-z][A-Za-z\-']{1,30})?)/i)
+    if (match && typeof match[1] === 'string') {
+      const name = match[1].trim()
+      if (name.length >= 2) {
+        return name
+      }
+    }
+  }
+
+  return null
+}
+
+function summarizeLeadNotes(messages) {
+  const firstUserMessage = messages.find((message) => message.role === 'user' && typeof message.content === 'string')
+  const text = firstUserMessage?.content?.trim() ?? ''
+  if (!text) {
+    return 'Inbound phone call via Twilio voice channel'
+  }
+
+  return text.length > 280 ? `${text.slice(0, 277)}...` : text
+}
+
+async function createLeadFromCall({ source, phone, messages }) {
+  const leadsUrl = resolveLeadsUrl()
+  if (!leadsUrl) {
+    app.log.warn({ source, phone }, 'No leads URL configured; skipping Twilio call lead creation')
+    return
+  }
+
+  if (!Array.isArray(messages) || messages.length === 0) {
+    app.log.info({ source, phone }, 'No transcript available for Twilio call lead creation')
+    return
+  }
+
+  const customerName = inferCustomerName(messages)
+  const payload = {
+    phone,
+    source: 'twilio-voice',
+    customer_name: customerName ?? undefined,
+    notes: summarizeLeadNotes(messages),
+    repair_type: 'phone_inquiry',
+    device: 'Unknown Device',
+  }
+
+  const response = await fetch(leadsUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(`Lead creation failed (${response.status}): ${body.slice(0, 300)}`)
+  }
 }
 
 function normalizeTranscriptText(value) {
@@ -317,6 +393,7 @@ app.register(async (fastify) => {
     const userTranscriptItemIds = new Set()
     const assistantResponseIds = new Set()
     let transcriptPersisted = false
+    let leadCreated = false
     let latestMediaTimestamp = 0
     let responseStartTimestamp = null
     let lastAssistantItemId = null
@@ -336,6 +413,16 @@ app.register(async (fastify) => {
           source: transcriptSource,
           messages: transcriptMessages,
         })
+
+        if (!leadCreated && transcriptMessages.length > 0) {
+          await createLeadFromCall({
+            source: transcriptSource,
+            phone: transcriptSource.startsWith('+') ? transcriptSource : 'unknown',
+            messages: transcriptMessages,
+          })
+          leadCreated = true
+        }
+
         app.log.info(
           {
             reason,
@@ -344,6 +431,7 @@ app.register(async (fastify) => {
             sessionId: transcriptSessionId,
             source: transcriptSource,
             messageCount: transcriptMessages.length,
+            leadCreated,
           },
           'Twilio call transcript persisted',
         )

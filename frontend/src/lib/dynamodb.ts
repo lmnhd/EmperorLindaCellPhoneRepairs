@@ -79,12 +79,14 @@ export interface RepairLead {
   lead_id: string
   timestamp: number
   phone: string
+  customer_name?: string
   repair_type: string
   device: string
   appointment_date: string
   appointment_time: string
   status: string
   lead_type: 'appointment' | 'callback' | 'on_site'   // type of scheduled event
+  source?: string
   notes?: string                                       // optional context / callback reason
   created_at: number
 }
@@ -220,8 +222,11 @@ export async function createLead(
   time: string,
   leadType: 'appointment' | 'callback' | 'on_site' = 'appointment',
   notes?: string,
+  customerName?: string,
+  source = 'web-chat',
 ): Promise<string> {
   const now = new Date()
+  const unixNow = Math.floor(now.getTime() / 1000)
   const timestamp = now.toISOString().replace(/[-:T]/g, '').slice(0, 15)
   const random = Math.random().toString(36).substring(2, 8)
   const prefix = leadType === 'callback' ? 'CALLBACK' : leadType === 'on_site' ? 'ONSITE' : 'LEAD'
@@ -229,16 +234,18 @@ export async function createLead(
 
   const lead: RepairLead = {
     lead_id: leadId,
-    timestamp: Math.floor(now.getTime() / 1000),
+    timestamp: unixNow,
     phone,
+    customer_name: customerName?.trim() || undefined,
     repair_type: repairType,
     device,
     appointment_date: date,
     appointment_time: time,
     status: 'booked',
     lead_type: leadType,
+    source,
     notes,
-    created_at: Math.floor(now.getTime() / 1000),
+    created_at: unixNow,
   }
 
   await docClient.send(

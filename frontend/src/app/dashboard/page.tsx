@@ -131,14 +131,36 @@ const STATUS_OPTIONS: Record<StatusMode, StatusConfig> = {
 interface Lead {
   lead_id: string
   phone: string
+  customer_name?: string
   repair_type: string
   device: string
   appointment_date: string
   appointment_time: string
   status: string
   lead_type?: 'appointment' | 'callback' | 'on_site'
+  source?: string
   notes?: string
-  created_at: string
+  created_at: number
+  timestamp?: number
+}
+
+function formatLeadCreatedAt(unix?: number): string {
+  if (!unix || !Number.isFinite(unix)) return '—'
+  return new Date(unix * 1000).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
+function leadSourceLabel(source?: string): string {
+  if (!source) return 'unknown'
+  if (source === 'web-chat') return 'web chat'
+  if (source === 'twilio-sms') return 'sms'
+  if (source === 'twilio-voice') return 'voice call'
+  return source
 }
 
 interface AssistantConfig {
@@ -294,7 +316,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchLeads = async () => {
       try {
-        const res  = await fetch('/api/leads')
+        const res  = await fetch('/api/leads', { cache: 'no-store' })
         if (!res.ok) return
         const data = await res.json() as { status: string; leads: Lead[] }
         if (data.status === 'success' && Array.isArray(data.leads)) setLeads(data.leads)
@@ -855,7 +877,7 @@ export default function DashboardPage() {
                   }[lt]
 
                   const TypeIcon = typeConfig.icon
-                  const canCall = isMobile && lead.phone && lead.phone !== 'unknown'
+                  const canCall = Boolean(lead.phone && lead.phone !== 'unknown')
                   const handleLeadClick = () => {
                     if (canCall) window.location.href = `tel:${lead.phone}`
                   }
@@ -912,8 +934,15 @@ export default function DashboardPage() {
                             </div>
                           )}
 
+                          {!!lead.customer_name && lead.customer_name.trim().length > 0 && (
+                            <div className="text-xs text-emperor-cream/60 font-mono flex items-center gap-1.5">
+                              <User className="w-3 h-3" />
+                              {lead.customer_name}
+                            </div>
+                          )}
+
                           {/* Meta row */}
-                          <div className="flex items-center gap-4 text-xs text-emperor-cream/30 font-mono">
+                          <div className="flex items-center gap-4 text-xs text-emperor-cream/30 font-mono flex-wrap">
                             {lead.phone && lead.phone !== 'unknown' && (
                               <span className={`flex items-center gap-1 ${
                                 canCall ? 'text-emperor-gold/80 font-semibold' : ''
@@ -923,8 +952,10 @@ export default function DashboardPage() {
                                 {canCall && <span className="text-[9px] ml-0.5">(tap to call)</span>}
                               </span>
                             )}
+                            <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{leadSourceLabel(lead.source)}</span>
                             <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{lead.appointment_date}</span>
                             <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{lead.appointment_time}</span>
+                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />created {formatLeadCreatedAt(lead.created_at || lead.timestamp)}</span>
                           </div>
                         </div>
                       </div>

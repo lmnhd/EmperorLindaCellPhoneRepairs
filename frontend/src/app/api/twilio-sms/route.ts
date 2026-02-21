@@ -108,6 +108,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           date: { type: 'string', description: 'Appointment date YYYY-MM-DD' },
           time: { type: 'string', description: "Appointment time e.g. '2:00 PM'" },
           phone: { type: 'string', description: 'Customer phone number' },
+          customer_name: { type: 'string', description: 'Customer full name if provided' },
           repair_type: { type: 'string', description: "e.g. 'screen', 'battery', 'charging_port'" },
           device: { type: 'string', description: "Device model e.g. 'iPhone 15 Pro'" },
         },
@@ -127,6 +128,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           date: { type: 'string', description: 'Callback date YYYY-MM-DD' },
           time: { type: 'string', description: "Preferred callback time e.g. '3:00 PM'" },
           phone: { type: 'string', description: 'Customer phone number' },
+          customer_name: { type: 'string', description: 'Customer full name if provided' },
           reason: { type: 'string', description: 'Brief reason for callback' },
         },
         required: ['date', 'time', 'reason'],
@@ -215,14 +217,16 @@ async function executeFunction(
       const date = args.date as string
       const time = args.time as string
       const phone = (args.phone as string) || 'unknown'
+      const customerName = typeof args.customer_name === 'string' ? args.customer_name.trim() : ''
       const repairType = args.repair_type as string
       const device = (args.device as string) || 'Unknown Device'
-      const leadId = await createLead(phone, repairType, device, date, time, leadType)
+      const leadId = await createLead(phone, repairType, device, date, time, leadType, undefined, customerName || undefined, 'twilio-sms')
       const typeLabel = leadType === 'on_site' ? 'On-site visit' : 'Appointment'
       return {
         success: true,
         lead_id: leadId,
         lead_type: leadType,
+        customer_name: customerName || undefined,
         date,
         time,
         device,
@@ -235,12 +239,14 @@ async function executeFunction(
       const date = args.date as string
       const time = args.time as string
       const phone = (args.phone as string) || 'unknown'
+      const customerName = typeof args.customer_name === 'string' ? args.customer_name.trim() : ''
       const reason = (args.reason as string) || 'General inquiry'
-      const leadId = await createLead(phone, reason, 'N/A', date, time, 'callback', reason)
+      const leadId = await createLead(phone, reason, 'N/A', date, time, 'callback', reason, customerName || undefined, 'twilio-sms')
       return {
         success: true,
         lead_id: leadId,
         lead_type: 'callback',
+        customer_name: customerName || undefined,
         date,
         time,
         reason,
