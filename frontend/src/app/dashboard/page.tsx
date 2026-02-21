@@ -32,6 +32,7 @@ import {
   Trash2,
   DollarSign,
   ListChecks,
+  AlertTriangle,
 } from 'lucide-react'
 import ChatLogOverlay from '@/components/ChatLogOverlay'
 import AgentPromptControlPanel from '@/components/AgentPromptControlPanel'
@@ -124,7 +125,7 @@ const STATUS_OPTIONS: Record<StatusMode, StatusConfig> = {
   gym:      { icon: Dumbbell, label: 'At the Gym',    color: 'text-emperor-gold',     bgColor: 'bg-emperor-gold/10 border-emperor-gold/20',     defaultNote: 'Back in 1-2 hours' },
   driving:  { icon: Car,      label: 'Driving / Out', color: 'text-accent-blue',      bgColor: 'bg-accent-blue/10 border-accent-blue/20',       defaultNote: 'On the move, will respond soon' },
   break:    { icon: Coffee,   label: 'On Break',      color: 'text-accent-amber',     bgColor: 'bg-accent-amber/10 border-accent-amber/20',     defaultNote: 'Quick break, back shortly' },
-  sleeping: { icon: Moon,     label: 'After Hours',   color: 'text-purple-400',       bgColor: 'bg-purple-400/10 border-purple-400/20',         defaultNote: 'Closed for the day. Open tomorrow at 9 AM' },
+  sleeping: { icon: Moon,     label: 'Away / Closed', color: 'text-purple-400',       bgColor: 'bg-purple-400/10 border-purple-400/20',         defaultNote: 'Currently Closed.' },
   custom:   { icon: Settings, label: 'Custom',        color: 'text-emperor-cream/60', bgColor: 'bg-emperor-cream/5 border-emperor-cream/10',    defaultNote: '' },
 }
 
@@ -243,7 +244,9 @@ export default function DashboardPage() {
   const [activeTab,    setActiveTab]    = useState<DashboardTab>('brandon')
   const [currentStatus, setCurrentStatus] = useState<StatusMode>('working')
   const [notes,        setNotes]        = useState(STATUS_OPTIONS.working.defaultNote)
-  const [location,     setLocation]     = useState('shop')
+  const [operationalHoursEnabled, setOperationalHoursEnabled] = useState(false)
+  const [operationalOpenTime, setOperationalOpenTime] = useState('09:00')
+  const [operationalCloseTime, setOperationalCloseTime] = useState('17:00')
   const [statusSaving, setStatusSaving] = useState(false)
   const [statusSaved,  setStatusSaved]  = useState(false)
   const [testingVoice, setTestingVoice] = useState<string | null>(null)
@@ -290,6 +293,7 @@ export default function DashboardPage() {
   const selectedNameConfig = ASSISTANT_NAMES.find(n => n.value === config.assistantName) ?? ASSISTANT_NAMES[0]
   const availableVoices    = getVoicesForGender(selectedNameConfig.gender)
   const statusConfig       = STATUS_OPTIONS[currentStatus]
+  const operationalHoursWarning = !operationalHoursEnabled && currentStatus === 'sleeping'
 
   const today    = new Date().toISOString().split('T')[0]
   const tomorrow = new Date(Date.now() + 86_400_000).toISOString().split('T')[0]
@@ -364,7 +368,15 @@ export default function DashboardPage() {
           const normalizedVoice = normalizeVoiceName(typeof s.voice === 'string' ? s.voice : undefined)
           if (s.status && s.status in STATUS_OPTIONS) setCurrentStatus(s.status as StatusMode)
           if (s.notes)    setNotes(s.notes)
-          if (s.location) setLocation(s.location)
+          if (typeof s.operational_hours_enabled === 'boolean') {
+            setOperationalHoursEnabled(s.operational_hours_enabled)
+          }
+          if (typeof s.operational_open_time === 'string' && s.operational_open_time.trim().length > 0) {
+            setOperationalOpenTime(s.operational_open_time)
+          }
+          if (typeof s.operational_close_time === 'string' && s.operational_close_time.trim().length > 0) {
+            setOperationalCloseTime(s.operational_close_time)
+          }
           setConfig(prev => ({
             ...prev,
             voice:          normalizedVoice      || prev.voice,
@@ -419,7 +431,6 @@ export default function DashboardPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             status:           currentStatus,
-            location,
             notes,
             special_info:     config.specialInfo,
             voice:            config.voice,
@@ -430,6 +441,9 @@ export default function DashboardPage() {
             ai_answers_calls: config.aiAnswersCalls,
             ai_answers_sms:   config.aiAnswersSms,
             auto_upsell:      config.autoUpsell,
+            operational_hours_enabled: operationalHoursEnabled,
+            operational_open_time: operationalHoursEnabled ? operationalOpenTime : null,
+            operational_close_time: operationalHoursEnabled ? operationalCloseTime : null,
             services_block:   'SERVICES & PRICING (approximate — always say "starting at"):\n' +
                               config.serviceLines.map(l => `- ${l}`).join('\n'),
           }),
@@ -475,7 +489,7 @@ export default function DashboardPage() {
         clearTimeout(autoSaveTimeoutRef.current)
       }
     }
-  }, [currentStatus, location, notes, config])
+  }, [currentStatus, notes, config, operationalHoursEnabled, operationalOpenTime, operationalCloseTime])
 
   return (
     <main className="min-h-screen bg-emperor-black">
@@ -583,15 +597,63 @@ export default function DashboardPage() {
                       placeholder="Custom message for customers..."
                     />
                   </div>
-                  <div>
-                    <FieldLabel>Location</FieldLabel>
-                    <input
-                      type="text"
-                      value={location}
-                      onChange={(e) => { setLocation(e.target.value); setStatusSaved(false) }}
-                      className="input-emperor !py-2.5 text-sm"
-                      placeholder="shop, gym, home..."
-                    />
+
+                  <div className="pt-2 border-t border-emperor-cream/10 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <FieldLabel>Operational Hours</FieldLabel>
+                        <p className="text-[11px] text-emperor-cream/35 font-mono">Optional scheduling window for the agent.</p>
+                      </div>
+                      <Toggle
+                        on={operationalHoursEnabled}
+                        onToggle={() => {
+                          setOperationalHoursEnabled((prev) => !prev)
+                          setStatusSaved(false)
+                        }}
+                      />
+                    </div>
+
+                    {operationalHoursEnabled ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <FieldLabel>Open Time</FieldLabel>
+                          <input
+                            type="time"
+                            value={operationalOpenTime}
+                            onChange={(e) => {
+                              setOperationalOpenTime(e.target.value)
+                              setStatusSaved(false)
+                            }}
+                            className="input-emperor !py-2.5 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>Close Time</FieldLabel>
+                          <input
+                            type="time"
+                            value={operationalCloseTime}
+                            onChange={(e) => {
+                              setOperationalCloseTime(e.target.value)
+                              setStatusSaved(false)
+                            }}
+                            className="input-emperor !py-2.5 text-sm"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-emperor-cream/10 bg-emperor-cream/5 px-3 py-2 text-[11px] text-emperor-cream/45 font-mono">
+                        Disabled — agent has no hour limits unless status/rules block scheduling.
+                      </div>
+                    )}
+
+                    {operationalHoursWarning && (
+                      <div className="rounded-lg border border-accent-red/35 bg-accent-red/10 px-3 py-2 text-[11px] font-mono text-accent-red/85 flex items-start gap-2">
+                        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                        <span>
+                          Operational Hours are disabled while Away / Closed is active. LINDA will treat the shop as closed indefinitely and stop scheduling. Enable Operational Hours and/or turn off Away / Closed to resume scheduling.
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </Panel>

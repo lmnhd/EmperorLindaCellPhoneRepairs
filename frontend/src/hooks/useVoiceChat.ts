@@ -28,7 +28,6 @@ interface ConnectOptions {
   sessionId?: string
   persona?: 'laidback' | 'professional' | 'hustler'
   brandonStatus?: string
-  brandonLocation?: string
   brandonNotes?: string
   voiceOverride?: 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimmer' | 'verse' | 'marin' | 'cedar' | 'fable' | 'onyx' | 'nova'
   handoffPrompt?: string

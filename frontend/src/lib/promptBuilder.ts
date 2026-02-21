@@ -26,8 +26,52 @@ const PERSONAS: Record<PersonaKey, string> = {
 - Example tone: "Listen, Brandon's one of the best in Jax. 90-day warranty on everything. You won't find that at those mall kiosks. Let's get you on the books."`,
 }
 
-function getStatusLabel(status: string): string {
-  switch (status) {
+function isCurrentlyWithinOperationalHours(state: BrandonState): boolean {
+  if (!state.operational_hours_enabled || !state.operational_open_time || !state.operational_close_time) {
+    return false
+  }
+
+  const [openHourText, openMinuteText] = state.operational_open_time.split(':')
+  const [closeHourText, closeMinuteText] = state.operational_close_time.split(':')
+  const openHour = Number.parseInt(openHourText, 10)
+  const openMinute = Number.parseInt(openMinuteText, 10)
+  const closeHour = Number.parseInt(closeHourText, 10)
+  const closeMinute = Number.parseInt(closeMinuteText, 10)
+
+  if (
+    !Number.isFinite(openHour) ||
+    !Number.isFinite(openMinute) ||
+    !Number.isFinite(closeHour) ||
+    !Number.isFinite(closeMinute)
+  ) {
+    return false
+  }
+
+  const openMinutes = openHour * 60 + openMinute
+  const closeMinutes = closeHour * 60 + closeMinute
+
+  // Get current time in Jacksonville, FL (America/New_York)
+  const now = new Date()
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  })
+  
+  const parts = formatter.formatToParts(now)
+  const currentHour = Number.parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10)
+  const currentMinute = Number.parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10)
+  
+  // Handle 24:00 edge case from Intl.DateTimeFormat
+  const normalizedHour = currentHour === 24 ? 0 : currentHour
+  const currentTotalMinutes = normalizedHour * 60 + currentMinute
+
+  return currentTotalMinutes >= openMinutes && currentTotalMinutes < closeMinutes
+}
+
+function getStatusLabel(state: BrandonState): string {
+  switch (state.status) {
     case 'gym':
       return 'At the gym — back in 1-2 hours'
     case 'unavailable':
@@ -37,10 +81,43 @@ function getStatusLabel(status: string): string {
     case 'break':
       return 'On break — back shortly'
     case 'sleeping':
-      return 'After hours — open tomorrow at 9 AM'
+      if (isCurrentlyWithinOperationalHours(state)) {
+        return 'Brandon has temporarily stepped away from the shop or is on a quick break.'
+      }
+      return 'The shop is currently closed.'
     default:
       return 'Available at the shop'
   }
+}
+
+function formatOperationalHours(openTime?: string | null, closeTime?: string | null): string {
+  if (!openTime || !closeTime) {
+    return 'not configured'
+  }
+
+  const [openHourText, openMinuteText] = openTime.split(':')
+  const [closeHourText, closeMinuteText] = closeTime.split(':')
+  const openHour = Number.parseInt(openHourText, 10)
+  const openMinute = Number.parseInt(openMinuteText, 10)
+  const closeHour = Number.parseInt(closeHourText, 10)
+  const closeMinute = Number.parseInt(closeMinuteText, 10)
+
+  if (
+    !Number.isFinite(openHour) ||
+    !Number.isFinite(openMinute) ||
+    !Number.isFinite(closeHour) ||
+    !Number.isFinite(closeMinute)
+  ) {
+    return 'not configured'
+  }
+
+  const toDisplay = (hour24: number, minute: number): string => {
+    const meridiem = hour24 >= 12 ? 'PM' : 'AM'
+    const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12
+    return `${hour12}:${minute.toString().padStart(2, '0')} ${meridiem}`
+  }
+
+  return `${toDisplay(openHour, openMinute)} - ${toDisplay(closeHour, closeMinute)}`
 }
 
 export function coercePersona(input: string | undefined): PersonaKey {
@@ -62,6 +139,7 @@ export function buildCorePrompt(state: BrandonState, persona: PersonaKey): strin
   const assistantName = state.assistant_name || 'LINDA'
   const savedGreeting = state.greeting?.trim() ?? ''
   const specialInfo = state.special_info?.trim() ?? ''
+  const operationalHoursEnabled = state.operational_hours_enabled === true
 
   const greetingBlock = savedGreeting
     ? `\nDEFAULT GREETING (use EXACTLY this greeting when greeting a new customer):\n"${savedGreeting}"`
@@ -124,15 +202,31 @@ SERVICE TYPES: Walk-in | On-site ($20 fee) | Remote (free diagnostic)`
 ${personalityBlock}
 ${greetingBlock}
 
-BRANDON'S CURRENT STATUS: ${getStatusLabel(state.status)}
-BRANDON'S LOCATION: ${state.location}
+BRANDON'S CURRENT STATUS: ${getStatusLabel(state)}
 ${state.notes ? `BRANDON'S NOTE: ${state.notes}` : ''}
 ${specialInfoBlock}
+OPERATIONAL HOURS MODE: ${operationalHoursEnabled ? `Enabled (${formatOperationalHours(state.operational_open_time, state.operational_close_time)})` : 'Disabled (no scheduling limits)'}
+
+SCHEDULING POLICY (STRICT):
+- If Operational Hours is enabled and configured, only schedule appointments/callbacks within those hours.
+- If Operational Hours is enabled, this scheduling window applies regardless of Brandon status mode.
+- If Operational Hours is disabled and status is Away / Closed, assume the shop is temporarily closed indefinitely and tell the customer to try again later.
+- Only override the indefinite-closure assumption when Brandon notes or Live Context explicitly provide reopening details.
+- If Operational Hours is disabled and status is not Away / Closed, scheduling has no time-window limits.
 
 ${servicesBlock}
 
 BEHAVIOR RULES:
 ${rulesBlock}
+
+TRUTH-ONLY RULE (NON-NEGOTIABLE):
+- If information is not explicitly known from this prompt, state, or customer message, say you don't know.
+- Never guess or invent facts (especially address, hours exceptions, prices, policies, names, dates, phone numbers, or availability).
+- Ask one short clarifying question or offer to take callback details to confirm.
+
+LOCATION SAFETY RULE (NON-NEGOTIABLE):
+- Do not state a storefront street address unless an exact address is explicitly present in Brandon's note, Owner Bulletin, or customer message.
+- If asked where the shop is and no exact address is explicitly present, reply: "I don’t have the exact storefront address in this chat yet. I can confirm it for you right now."
 
 Today's date: ${new Date().toISOString().split('T')[0]}`
 }

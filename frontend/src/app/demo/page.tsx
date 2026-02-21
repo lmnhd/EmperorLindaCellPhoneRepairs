@@ -30,7 +30,7 @@ interface ChatMessage {
 interface ChatApiResponse {
   reply: string
   sessionId: string
-  brandonState?: { status: string; location: string; notes: string }
+  brandonState?: { status: string; notes: string }
   error?: string
 }
 
@@ -39,7 +39,6 @@ interface StatusPreset {
   label: string
   icon: typeof Wrench
   status: string
-  location: string
   notes: string
   color: string
   bg: string
@@ -56,7 +55,6 @@ const STATUS_PRESETS: StatusPreset[] = [
     label: 'At Shop',
     icon: Wrench,
     status: 'available',
-    location: 'shop',
     notes: 'Walk-ins welcome',
     color: 'text-accent-emerald',
     bg: 'bg-accent-emerald/10',
@@ -67,7 +65,6 @@ const STATUS_PRESETS: StatusPreset[] = [
     label: 'At Gym',
     icon: Dumbbell,
     status: 'gym',
-    location: 'gym',
     notes: 'Back in 1-2 hours',
     color: 'text-emperor-gold',
     bg: 'bg-emperor-gold/10',
@@ -78,7 +75,6 @@ const STATUS_PRESETS: StatusPreset[] = [
     label: 'On Break',
     icon: Coffee,
     status: 'unavailable',
-    location: 'out',
     notes: 'Quick lunch break, back in 30 min',
     color: 'text-accent-amber',
     bg: 'bg-accent-amber/10',
@@ -89,7 +85,6 @@ const STATUS_PRESETS: StatusPreset[] = [
     label: 'Closed',
     icon: Moon,
     status: 'unavailable',
-    location: 'home',
     notes: 'Shop is closed for the day. Opens 9 AM tomorrow.',
     color: 'text-emperor-cream/40',
     bg: 'bg-emperor-cream/5',
@@ -166,7 +161,6 @@ export default function LiveDemoPage() {
           sessionId,
           phone: 'demo-user',
           brandonStatus: preset.status,
-          brandonLocation: preset.location,
           brandonNotes: preset.notes,
         }),
       })
@@ -230,7 +224,6 @@ export default function LiveDemoPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         status: preset.status,
-        location: preset.location,
         notes: preset.notes,
       }),
     })

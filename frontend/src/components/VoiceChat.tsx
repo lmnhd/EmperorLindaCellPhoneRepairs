@@ -26,7 +26,6 @@ interface VoiceChatProps {
   persona: PersonaKey
   onEndCall: (history: VoiceHistoryEntry[]) => void
   brandonStatus?: string
-  brandonLocation?: string
   brandonNotes?: string
   voiceOverride?: VoiceName
   sessionId?: string
@@ -47,7 +46,6 @@ export default function VoiceChat({
   persona,
   onEndCall,
   brandonStatus,
-  brandonLocation,
   brandonNotes,
   voiceOverride,
   sessionId,
@@ -165,7 +163,6 @@ export default function VoiceChat({
         persona,
         sessionId,
         brandonStatus,
-        brandonLocation,
         brandonNotes,
         voiceOverride,
         handoffPrompt,
@@ -183,7 +180,6 @@ export default function VoiceChat({
     persona,
     sessionId,
     brandonStatus,
-    brandonLocation,
     brandonNotes,
     voiceOverride,
     handoffPrompt,

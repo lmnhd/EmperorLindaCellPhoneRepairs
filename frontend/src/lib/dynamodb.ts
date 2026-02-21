@@ -49,7 +49,6 @@ const docClient = DynamoDBDocumentClient.from(ddbClient, {
 export interface BrandonState {
   state_id: string
   status: string
-  location: string
   notes: string
   special_info?: string
   voice?: string
@@ -72,7 +71,16 @@ export interface BrandonState {
   // Dynamic knowledge base — editable from the dashboard
   services_block?: string      // Full services & pricing text block
   behavior_rules?: string      // JSON array of rule strings e.g. '["Rule 1","Rule 2"]'
+  operational_hours_enabled?: boolean
+  operational_open_time?: string | null
+  operational_close_time?: string | null
   updated_at: number
+}
+
+export interface OperationalHoursConfig {
+  enabled: boolean
+  openTime?: string | null
+  closeTime?: string | null
 }
 
 export interface RepairLead {
@@ -129,7 +137,6 @@ export async function getBrandonState(): Promise<BrandonState> {
     return {
       state_id: 'CURRENT',
       status: 'available',
-      location: 'shop',
       notes: 'Default state',
       updated_at: Math.floor(Date.now() / 1000),
     }
@@ -138,7 +145,6 @@ export async function getBrandonState(): Promise<BrandonState> {
     return {
       state_id: 'CURRENT',
       status: 'available',
-      location: 'shop',
       notes: 'Error fetching state',
       updated_at: Math.floor(Date.now() / 1000),
     }
@@ -148,7 +154,6 @@ export async function getBrandonState(): Promise<BrandonState> {
 export async function updateBrandonState(
   updates: Partial<Pick<BrandonState,
     | 'status'
-    | 'location'
     | 'notes'
     | 'special_info'
     | 'voice'
@@ -170,6 +175,9 @@ export async function updateBrandonState(
     | 'agent_phone_temperature'
     | 'services_block'
     | 'behavior_rules'
+    | 'operational_hours_enabled'
+    | 'operational_open_time'
+    | 'operational_close_time'
   >>
 ): Promise<BrandonState> {
   const updatedAt = Math.floor(Date.now() / 1000)
@@ -296,8 +304,62 @@ export async function getAllLeads(): Promise<RepairLead[]> {
   return uniqueLeads.sort((a, b) => b.timestamp - a.timestamp)
 }
 
-export async function getAvailableSlots(date: string): Promise<string[]> {
-  const allSlots = [
+function parseTwentyFourHourTime(value: string): number | null {
+  const match = value.match(/^(\d{2}):(\d{2})$/)
+  if (!match) {
+    return null
+  }
+
+  const hours = Number.parseInt(match[1], 10)
+  const minutes = Number.parseInt(match[2], 10)
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return null
+  }
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null
+  }
+
+  return hours * 60 + minutes
+}
+
+function formatMinutesAsTwelveHour(totalMinutes: number): string {
+  const normalized = ((totalMinutes % 1440) + 1440) % 1440
+  const hour24 = Math.floor(normalized / 60)
+  const minutes = normalized % 60
+  const meridiem = hour24 >= 12 ? 'PM' : 'AM'
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12
+  return `${hour12}:${minutes.toString().padStart(2, '0')} ${meridiem}`
+}
+
+function buildHourlySlots(openTime?: string | null, closeTime?: string | null): string[] | null {
+  if (!openTime || !closeTime) {
+    return null
+  }
+
+  const openMinutes = parseTwentyFourHourTime(openTime)
+  const closeMinutes = parseTwentyFourHourTime(closeTime)
+
+  if (openMinutes === null || closeMinutes === null || closeMinutes <= openMinutes) {
+    return null
+  }
+
+  const slots: string[] = []
+  let cursor = openMinutes
+  while (cursor < closeMinutes && slots.length < 24) {
+    slots.push(formatMinutesAsTwelveHour(cursor))
+    cursor += 60
+  }
+
+  return slots.length > 0 ? slots : null
+}
+
+export async function getAvailableSlots(date: string, operationalHours?: OperationalHoursConfig): Promise<string[]> {
+  const allSlots = operationalHours?.enabled
+    ? (buildHourlySlots(operationalHours.openTime, operationalHours.closeTime) ?? [
+      '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
+      '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM',
+    ])
+    : [
     '9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
     '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM',
   ]

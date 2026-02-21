@@ -7,7 +7,6 @@ export interface ChatMessage {
 
 export interface BrandonState {
   status: string
-  location: string
   notes: string
 }
 

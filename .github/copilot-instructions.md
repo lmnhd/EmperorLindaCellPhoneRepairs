@@ -9,6 +9,10 @@
 > 1. **NO `any` TYPES** - Always use explicit TypeScript types
 > 2. **NO MOCK DATA** - Always integrate with real APIs/DynamoDB
 > 3. **USE `frontend-design` SKILL** - Mandatory for all Next.js UI components
+> **🚨 DO NOT BUILD UNLESS EXPLICITLY ASKED**
+> - This is a planning and design document
+> - Only proceed with implementation when you receive a direct build instruction
+> - Use this to inform all code generation decisions, but do not execute until authorized
 
 ## Architecture
 This is a serverless AWS + Next.js system with three core components:

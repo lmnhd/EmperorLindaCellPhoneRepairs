@@ -34,7 +34,6 @@ interface RealtimeSessionRequest {
   sessionId?: string
   persona?: PersonaKey
   brandonStatus?: string
-  brandonLocation?: string
   brandonNotes?: string
   voiceOverride?: VoiceName
   handoffPrompt?: string
@@ -59,6 +58,11 @@ BROWSER VOICE CHAT INSTRUCTIONS:
 - Do NOT claim you need to look up pricing via tools.
 - For pricing questions, answer directly from SERVICES & PRICING with "starting at" language.
 - Do not repeat the same sentence across turns; each new user message needs a fresh direct answer.
+
+LOCATION SAFETY (HIGHEST PRIORITY):
+- Never invent or guess a storefront street address.
+- Only state a storefront address if it appears explicitly in the provided instructions/context for this session.
+- If asked for location and no explicit address is present, say exactly: "I don’t have the exact storefront address in this chat yet. I can confirm it for you right now."
 `
 
 const SUPPORTED_REALTIME_VOICES: Set<SupportedRealtimeVoice> = new Set([
@@ -95,7 +99,6 @@ function applyOverrides(state: BrandonState, request: RealtimeSessionRequest): B
   return {
     ...state,
     status: request.brandonStatus ?? state.status,
-    location: request.brandonLocation ?? state.location,
     notes: request.brandonNotes ?? state.notes,
     persona: request.persona ?? state.persona,
     voice: request.voiceOverride ?? state.voice,
@@ -142,7 +145,6 @@ export async function POST(req: Request) {
         voiceRequested: body.voiceOverride ?? assembled.voice,
         voiceNormalized: chosenVoice,
         status: effectiveState.status,
-        location: effectiveState.location,
         hasHandoffPrompt: Boolean(body.handoffPrompt?.trim()),
       },
       timestamp: Date.now(),

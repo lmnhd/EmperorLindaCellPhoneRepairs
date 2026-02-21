@@ -7,7 +7,6 @@ import { getBrandonState, updateBrandonState } from '@/lib/dynamodb'
 
 interface StateUpdateBody {
   status?: string
-  location?: string
   notes?: string
   special_info?: string
   voice?: string
@@ -20,6 +19,9 @@ interface StateUpdateBody {
   auto_upsell?: boolean
   services_block?: string
   behavior_rules?: string
+  operational_hours_enabled?: boolean
+  operational_open_time?: string | null
+  operational_close_time?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -52,7 +54,6 @@ export async function POST(req: NextRequest) {
 
     const updated = await updateBrandonState({
       status: body.status,
-      location: body.location,
       notes: body.notes,
       special_info: body.special_info,
       voice: body.voice,
@@ -65,6 +66,9 @@ export async function POST(req: NextRequest) {
       auto_upsell: body.auto_upsell,
       services_block: body.services_block,
       behavior_rules: body.behavior_rules,
+      operational_hours_enabled: body.operational_hours_enabled,
+      operational_open_time: body.operational_open_time,
+      operational_close_time: body.operational_close_time,
     })
 
     return NextResponse.json({

@@ -29,7 +29,6 @@ type VoiceName = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimm
 
 interface BrandonStatePayload {
   status?: string
-  location?: string
   notes?: string
   persona?: string
   voice?: string
@@ -81,9 +80,7 @@ export default function ChatHero({ onInputFocusChange, onHardSwipeUp, onConversa
   const [isRequestingMic, setIsRequestingMic] = useState(false)
   const [isVoiceMode, setIsVoiceMode] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
-  const [voiceVisualState, setVoiceVisualState] = useState<'connecting' | 'speaking' | 'listening' | 'idle' | 'ending'>('idle')
   const [brandonStatus, setBrandonStatus] = useState('available')
-  const [brandonLocation, setBrandonLocation] = useState('shop')
   const [brandonNotes, setBrandonNotes] = useState('Walk-ins welcome')
   const [persona, setPersona] = useState<PersonaKey>('professional')
   const [voiceOverride, setVoiceOverride] = useState<VoiceName | undefined>(undefined)
@@ -152,10 +149,6 @@ export default function ChatHero({ onInputFocusChange, onHardSwipeUp, onConversa
 
         if (typeof state.status === 'string' && state.status.trim().length > 0) {
           setBrandonStatus(state.status)
-        }
-
-        if (typeof state.location === 'string' && state.location.trim().length > 0) {
-          setBrandonLocation(state.location)
         }
 
         if (typeof state.notes === 'string' && state.notes.trim().length > 0) {
@@ -362,7 +355,6 @@ export default function ChatHero({ onInputFocusChange, onHardSwipeUp, onConversa
     }
 
     setIsVoiceMode(false)
-    setVoiceVisualState('idle')
   }
 
   const handleVoiceAssistantMessage = (content: string) => {
@@ -390,7 +382,6 @@ export default function ChatHero({ onInputFocusChange, onHardSwipeUp, onConversa
       setIsRequestingMic(true)
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       stream.getTracks().forEach((track) => track.stop())
-      setVoiceVisualState('connecting')
       setIsVoiceMode(true)
     } catch {
       setVoiceError('Microphone access was denied. Please allow access and try again.')
@@ -492,7 +483,6 @@ export default function ChatHero({ onInputFocusChange, onHardSwipeUp, onConversa
           persona={persona}
           onEndCall={handleVoiceCallEnd}
           brandonStatus={brandonStatus}
-          brandonLocation={brandonLocation}
           brandonNotes={brandonNotes}
           voiceOverride={voiceOverride}
           sessionId={sessionId}
@@ -500,7 +490,6 @@ export default function ChatHero({ onInputFocusChange, onHardSwipeUp, onConversa
           initialAssistantMessage={latestAssistantMessage}
           renderMode="hero"
           onAssistantMessage={handleVoiceAssistantMessage}
-          onVoiceStateChange={setVoiceVisualState}
         />
       )}
 

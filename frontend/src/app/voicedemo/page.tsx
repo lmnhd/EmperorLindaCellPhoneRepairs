@@ -137,7 +137,6 @@ export default function VoiceDemoPage() {
         persona={selectedPersona}
         onEndCall={endCall}
         brandonStatus="available"
-        brandonLocation="shop"
         brandonNotes="Walk-ins welcome"
         voiceOverride={savedVoice as 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' | undefined}
       />

@@ -343,8 +343,8 @@ export default function PitchPage() {
           </div>
 
           <blockquote className="py-1 pl-5 mt-10 text-lg italic leading-relaxed border-l-4 border-emperor-gold text-emperor-gold font-display">
-            "Brandon is incredible when you get him." — That 5-star technician has a 3-star 
-            discoverability problem. That's not a skills gap. That's a systems gap.
+            &quot;Brandon is incredible when you get him.&quot; — That 5-star technician has a 3-star 
+            discoverability problem. That&apos;s not a skills gap. That&apos;s a systems gap.
           </blockquote>
         </div>
       </section>
@@ -495,7 +495,7 @@ export default function PitchPage() {
           <h2 className="mb-5 text-4xl leading-none font-display sm:text-6xl text-emperor-cream">
             The software is{' '}
             <em className="italic text-emperor-gold">built.</em>
-            <br />It's waiting for your number.
+            <br />It&apos;s waiting for your number.
           </h2>
           <p className="max-w-md mx-auto mb-10 text-base leading-relaxed text-emperor-cream/45">
             No setup required on your end. Call the demo line, try the chat, explore the dashboard — 

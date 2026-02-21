@@ -6,7 +6,9 @@ import {
   createLead,
   getAvailableSlots,
   saveChatLog,
+  type BrandonState,
   type ChatLogMessage,
+  type OperationalHoursConfig,
 } from '@/lib/dynamodb'
 import {
   coerceChannel,
@@ -23,7 +25,6 @@ interface ChatRequestBody {
   persona?: PersonaKey
   channel?: ChannelType
   brandonStatus?: string
-  brandonLocation?: string
   brandonNotes?: string
 }
 
@@ -37,6 +38,17 @@ interface ConversationEntry {
   content: string
   tool_call_id?: string
   tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]
+}
+
+interface SchedulingPolicy {
+  operationalHours: OperationalHoursConfig
+  isAfterHours: boolean
+  hasLiveContext: boolean
+}
+
+interface ChatReplyContext {
+  sessionId: string
+  source: string
 }
 
 const CONTEXT_SUMMARY_MARKER = 'CONTEXT_COMPACTION_SUMMARY:'
@@ -148,6 +160,159 @@ function clampReplyLength(reply: string): string {
   }
 
   return `${clipped.trim()}…`
+}
+
+function buildChatLogMessages(history: ConversationEntry[]): ChatLogMessage[] {
+  const baseTimestamp = Math.floor(Date.now() / 1000)
+
+  return history
+    .filter((entry) => entry.role === 'user' || entry.role === 'assistant')
+    .filter((entry) => entry.content && entry.content.trim().length > 0)
+    .map((entry, index) => ({
+      role: entry.role as 'user' | 'assistant',
+      content: entry.content,
+      timestamp: baseTimestamp + index,
+    }))
+}
+
+async function persistConversationLog(context: ChatReplyContext, history: ConversationEntry[]): Promise<void> {
+  const messages = buildChatLogMessages(history)
+  if (messages.length === 0) {
+    console.log('[ChatLog] skip_empty_messages', {
+      sessionId: context.sessionId,
+      source: context.source,
+    })
+    return
+  }
+
+  const lastMessage = messages[messages.length - 1]
+  console.log('[ChatLog] persist_attempt', {
+    sessionId: context.sessionId,
+    source: context.source,
+    messageCount: messages.length,
+    lastRole: lastMessage?.role,
+    lastContent: lastMessage?.content,
+  })
+
+  try {
+    await saveChatLog(context.sessionId, context.source, messages)
+    console.log('[ChatLog] persist_success', {
+      sessionId: context.sessionId,
+      source: context.source,
+      messageCount: messages.length,
+    })
+  } catch (error: unknown) {
+    console.error('Failed to persist chat log:', error)
+  }
+}
+
+function parseTwentyFourHourMinutes(value: string): number | null {
+  const match = value.match(/^(\d{2}):(\d{2})$/)
+  if (!match) {
+    return null
+  }
+
+  const hours = Number.parseInt(match[1], 10)
+  const minutes = Number.parseInt(match[2], 10)
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return null
+  }
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null
+  }
+
+  return hours * 60 + minutes
+}
+
+function parseUserTimeMinutes(value: string): number | null {
+  const text = value.trim()
+  if (!text) {
+    return null
+  }
+
+  const twentyFour = parseTwentyFourHourMinutes(text)
+  if (twentyFour !== null) {
+    return twentyFour
+  }
+
+  const twelveHourMatch = text.match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i)
+  if (!twelveHourMatch) {
+    return null
+  }
+
+  const hour12 = Number.parseInt(twelveHourMatch[1], 10)
+  const minute = Number.parseInt(twelveHourMatch[2], 10)
+  const meridiem = twelveHourMatch[3].toUpperCase()
+  if (!Number.isFinite(hour12) || !Number.isFinite(minute)) {
+    return null
+  }
+  if (hour12 < 1 || hour12 > 12 || minute < 0 || minute > 59) {
+    return null
+  }
+
+  const hour24 = (hour12 % 12) + (meridiem === 'PM' ? 12 : 0)
+  return hour24 * 60 + minute
+}
+
+function formatTwelveHourFromMinutes(totalMinutes: number): string {
+  const normalized = ((totalMinutes % 1440) + 1440) % 1440
+  const hour24 = Math.floor(normalized / 60)
+  const minute = normalized % 60
+  const meridiem = hour24 >= 12 ? 'PM' : 'AM'
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12
+  return `${hour12}:${minute.toString().padStart(2, '0')} ${meridiem}`
+}
+
+function hasLiveContext(state: BrandonState): boolean {
+  const notes = typeof state.notes === 'string' ? state.notes.trim() : ''
+  const special = typeof state.special_info === 'string' ? state.special_info.trim() : ''
+  return notes.length > 0 || special.length > 0
+}
+
+function buildSchedulingPolicy(state: BrandonState): SchedulingPolicy {
+  const openTime = typeof state.operational_open_time === 'string' ? state.operational_open_time : null
+  const closeTime = typeof state.operational_close_time === 'string' ? state.operational_close_time : null
+
+  return {
+    operationalHours: {
+      enabled: state.operational_hours_enabled === true,
+      openTime,
+      closeTime,
+    },
+    isAfterHours: state.status === 'sleeping',
+    hasLiveContext: hasLiveContext(state),
+  }
+}
+
+function isOperationalHoursConfigured(policy: SchedulingPolicy): boolean {
+  return Boolean(policy.operationalHours.openTime && policy.operationalHours.closeTime)
+}
+
+function isWithinOperationalHours(time: string, policy: SchedulingPolicy): boolean {
+  const open = policy.operationalHours.openTime
+  const close = policy.operationalHours.closeTime
+  if (!open || !close) {
+    return false
+  }
+
+  const candidate = parseUserTimeMinutes(time)
+  const openMinutes = parseTwentyFourHourMinutes(open)
+  const closeMinutes = parseTwentyFourHourMinutes(close)
+  if (candidate === null || openMinutes === null || closeMinutes === null || closeMinutes <= openMinutes) {
+    return false
+  }
+
+  return candidate >= openMinutes && candidate < closeMinutes
+}
+
+function operationalHoursLabel(policy: SchedulingPolicy): string {
+  const openMinutes = policy.operationalHours.openTime ? parseTwentyFourHourMinutes(policy.operationalHours.openTime) : null
+  const closeMinutes = policy.operationalHours.closeTime ? parseTwentyFourHourMinutes(policy.operationalHours.closeTime) : null
+  if (openMinutes === null || closeMinutes === null) {
+    return 'configured operating window'
+  }
+
+  return `${formatTwelveHourFromMinutes(openMinutes)} - ${formatTwelveHourFromMinutes(closeMinutes)}`
 }
 
 // ---------------------------------------------------------------------------
@@ -307,12 +472,34 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 
 async function executeFunction(
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  state: BrandonState,
 ): Promise<FunctionResult> {
+  const policy = buildSchedulingPolicy(state)
+
   switch (name) {
     case 'check_availability': {
       const date = args.date as string
-      const available = await getAvailableSlots(date)
+
+      if (policy.operationalHours.enabled && !isOperationalHoursConfigured(policy)) {
+        return {
+          success: false,
+          date,
+          available_slots: [],
+          message: 'Scheduling is temporarily unavailable until Operational Hours are fully configured (open and close time).',
+        }
+      }
+
+      if (!policy.operationalHours.enabled && policy.isAfterHours && !policy.hasLiveContext) {
+        return {
+          success: false,
+          date,
+          available_slots: [],
+          message: 'Shop is currently closed. Please try again later for scheduling updates.',
+        }
+      }
+
+      const available = await getAvailableSlots(date, policy.operationalHours)
       return {
         success: true,
         date,
@@ -331,6 +518,27 @@ async function executeFunction(
       const customerName = typeof args.customer_name === 'string' ? args.customer_name.trim() : ''
       const repairType = args.repair_type as string
       const device = (args.device as string) || 'Unknown Device'
+
+      if (policy.operationalHours.enabled) {
+        if (!isOperationalHoursConfigured(policy)) {
+          return {
+            success: false,
+            message: 'Cannot book yet: Operational Hours are enabled but missing open/close time.',
+          }
+        }
+
+        if (!isWithinOperationalHours(time, policy)) {
+          return {
+            success: false,
+            message: `That time is outside Operational Hours (${operationalHoursLabel(policy)}). Please choose a time within that window.`,
+          }
+        }
+      } else if (policy.isAfterHours && !policy.hasLiveContext) {
+        return {
+          success: false,
+          message: 'Shop is currently closed and not accepting scheduled bookings right now. Please try again later.',
+        }
+      }
 
       const leadId = await createLead(phone, repairType, device, date, time, leadType, undefined, customerName || undefined, 'web-chat')
       const typeLabel = leadType === 'on_site' ? 'On-site visit' : 'Appointment'
@@ -353,6 +561,27 @@ async function executeFunction(
       const phone = (args.phone as string) || 'unknown'
       const customerName = typeof args.customer_name === 'string' ? args.customer_name.trim() : ''
       const reason = (args.reason as string) || 'General inquiry'
+
+      if (policy.operationalHours.enabled) {
+        if (!isOperationalHoursConfigured(policy)) {
+          return {
+            success: false,
+            message: 'Cannot schedule callback yet: Operational Hours are enabled but missing open/close time.',
+          }
+        }
+
+        if (!isWithinOperationalHours(time, policy)) {
+          return {
+            success: false,
+            message: `That callback time is outside Operational Hours (${operationalHoursLabel(policy)}). Please choose a time within that window.`,
+          }
+        }
+      } else if (policy.isAfterHours && !policy.hasLiveContext) {
+        return {
+          success: false,
+          message: 'Shop is currently closed and callbacks are paused right now. Please try again later.',
+        }
+      }
 
       const leadId = await createLead(phone, reason, 'N/A', date, time, 'callback', reason, customerName || undefined, 'web-chat')
       return {
@@ -444,10 +673,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Override state in DynamoDB if request provides overrides
-    if (body.brandonStatus || body.brandonLocation || body.brandonNotes !== undefined) {
+    if (body.brandonStatus || body.brandonNotes !== undefined) {
       await updateBrandonState({
         status: body.brandonStatus,
-        location: body.brandonLocation,
         notes: body.brandonNotes,
       })
     }
@@ -461,6 +689,10 @@ export async function POST(req: NextRequest) {
 
     // Session management
     const sessionId = body.sessionId || 'default'
+    const chatLogContext: ChatReplyContext = {
+      sessionId,
+      source: body.phone || 'unknown',
+    }
     addAgentDebugEvent({
       source: 'chat-api',
       event: 'request_received',
@@ -509,7 +741,7 @@ export async function POST(req: NextRequest) {
 
       // Use faster model for voice channels to reduce latency
       const model = channel === 'text' ? 'gpt-5-mini' : 'gpt-4o-mini'
-      const maxTokens = channel === 'text' ? 260 : 150
+      const maxTokens = channel === 'text' ? 420 : 150
       const tokenLimitParam = model.startsWith('gpt-5')
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens }
@@ -535,7 +767,7 @@ export async function POST(req: NextRequest) {
           throw completionError
         }
 
-        const boostedMaxTokens = channel === 'text' ? 420 : 220
+        const boostedMaxTokens = channel === 'text' ? 700 : 220
         const boostedTokenLimitParam = model.startsWith('gpt-5')
           ? { max_completion_tokens: boostedMaxTokens }
           : { max_tokens: boostedMaxTokens }
@@ -582,13 +814,14 @@ export async function POST(req: NextRequest) {
             timestamp: Date.now(),
           })
 
+          await persistConversationLog(chatLogContext, history)
+
           return NextResponse.json({
             reply: fallbackReply,
             sessionId,
             persona,
             brandonState: {
               status: currentState.status,
-              location: currentState.location,
               notes: currentState.notes,
             },
           })
@@ -639,7 +872,7 @@ export async function POST(req: NextRequest) {
             function: { name: string; arguments: string }
           }
           const args = JSON.parse(fnCall.function.arguments) as Record<string, unknown>
-          const result = await executeFunction(fnCall.function.name, args)
+          const result = await executeFunction(fnCall.function.name, args, currentState)
 
           addAgentDebugEvent({
             source: 'chat-api',
@@ -710,19 +943,7 @@ export async function POST(req: NextRequest) {
         conversations.set(sessionId, history)
       }
 
-      // Persist chat log to DynamoDB (fire-and-forget to avoid slowing response)
-      const chatMessages: ChatLogMessage[] = history
-        .filter((h) => h.role === 'user' || h.role === 'assistant')
-        .filter((h) => h.content && h.content.trim().length > 0)
-        .map((h) => ({
-          role: h.role as 'user' | 'assistant',
-          content: h.content,
-          timestamp: Math.floor(Date.now() / 1000),
-        }))
-
-      saveChatLog(sessionId, body.phone || 'unknown', chatMessages).catch((err) =>
-        console.error('Failed to persist chat log:', err)
-      )
+      await persistConversationLog(chatLogContext, history)
 
       return NextResponse.json({
         reply,
@@ -730,19 +951,21 @@ export async function POST(req: NextRequest) {
         persona,
         brandonState: {
           status: currentState.status,
-          location: currentState.location,
           notes: currentState.notes,
         },
       })
     }
 
+    const fallbackLoopReply = "I got a bit tangled up there! Could you rephrase that for me?"
+    history.push({ role: 'assistant', content: fallbackLoopReply })
+    await persistConversationLog(chatLogContext, history)
+
     return NextResponse.json({
-      reply: "I got a bit tangled up there! Could you rephrase that for me?",
+      reply: fallbackLoopReply,
       sessionId,
       persona,
       brandonState: {
         status: currentState.status,
-        location: currentState.location,
         notes: currentState.notes,
       },
     })
