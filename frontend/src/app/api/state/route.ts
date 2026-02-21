@@ -19,6 +19,7 @@ interface StateUpdateBody {
   auto_upsell?: boolean
   services_block?: string
   behavior_rules?: string
+  what_we_fix_items?: string
   operational_hours_enabled?: boolean
   operational_open_time?: string | null
   operational_close_time?: string | null
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
       auto_upsell: body.auto_upsell,
       services_block: body.services_block,
       behavior_rules: body.behavior_rules,
+      what_we_fix_items: body.what_we_fix_items,
       operational_hours_enabled: body.operational_hours_enabled,
       operational_open_time: body.operational_open_time,
       operational_close_time: body.operational_close_time,

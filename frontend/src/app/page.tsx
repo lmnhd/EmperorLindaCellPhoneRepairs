@@ -13,12 +13,68 @@ import {
 } from 'lucide-react'
 import ChatHero from '@/components/ChatHero'
 
-const SERVICES = [
-  { icon: Monitor, label: 'Screen Repair', price: 'From $79', time: '~45 min' },
-  { icon: Battery, label: 'Battery Swap', price: 'From $49', time: '~30 min' },
-  { icon: Zap, label: 'Charging Port', price: 'From $59', time: '~40 min' },
-  { icon: Cpu, label: 'Diagnostics', price: 'Free', time: '~15 min' },
+type WhatWeFixIcon = 'monitor' | 'battery' | 'zap' | 'cpu'
+
+interface WhatWeFixItem {
+  icon: WhatWeFixIcon
+  name: string
+  price: string
+  service: string
+}
+
+const WHAT_WE_FIX_ICON_COMPONENTS: Record<WhatWeFixIcon, typeof Monitor> = {
+  monitor: Monitor,
+  battery: Battery,
+  zap: Zap,
+  cpu: Cpu,
+}
+
+const DEFAULT_WHAT_WE_FIX_ITEMS: WhatWeFixItem[] = [
+  { icon: 'monitor', name: 'Screen Repair', price: 'From $79', service: '~45 min' },
+  { icon: 'battery', name: 'Battery Swap', price: 'From $49', service: '~30 min' },
+  { icon: 'zap', name: 'Charging Port', price: 'From $59', service: '~40 min' },
+  { icon: 'cpu', name: 'Diagnostics', price: 'Free', service: '~15 min' },
 ]
+
+function parseWhatWeFixItems(raw: unknown): WhatWeFixItem[] | null {
+  if (typeof raw !== 'string' || raw.trim().length === 0) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return null
+    }
+
+    const mapped = parsed
+      .map((item): WhatWeFixItem | null => {
+        if (!item || typeof item !== 'object') {
+          return null
+        }
+
+        const candidate = item as Partial<WhatWeFixItem>
+        const icon = candidate.icon
+        if (icon !== 'monitor' && icon !== 'battery' && icon !== 'zap' && icon !== 'cpu') {
+          return null
+        }
+
+        const name = typeof candidate.name === 'string' ? candidate.name.trim() : ''
+        const price = typeof candidate.price === 'string' ? candidate.price.trim() : ''
+        const service = typeof candidate.service === 'string' ? candidate.service.trim() : ''
+        if (!name || !price || !service) {
+          return null
+        }
+
+        return { icon, name, price, service }
+      })
+      .filter((item): item is WhatWeFixItem => item !== null)
+
+    return mapped.length > 0 ? mapped : null
+  } catch {
+    return null
+  }
+}
 
 const REVIEWS = [
   { name: 'Marcus T.', text: 'Fixed my iPhone screen in 40 minutes. Unreal.', rating: 5 },
@@ -28,6 +84,7 @@ const REVIEWS = [
 
 export default function LandingPage() {
   const [mounted, setMounted] = useState(false)
+  const [whatWeFixItems, setWhatWeFixItems] = useState<WhatWeFixItem[]>(DEFAULT_WHAT_WE_FIX_ITEMS)
   const [isMobileView, setIsMobileView] = useState(false)
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
   const [isChatInputFocused, setIsChatInputFocused] = useState(false)
@@ -36,6 +93,27 @@ export default function LandingPage() {
 
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const loadWhatWeFixItems = async () => {
+      try {
+        const res = await fetch('/api/state', { cache: 'no-store' })
+        if (!res.ok) return
+
+        const payload = await res.json() as { status?: string; state?: { what_we_fix_items?: string } }
+        if (payload.status !== 'success') return
+
+        const parsed = parseWhatWeFixItems(payload.state?.what_we_fix_items)
+        if (parsed) {
+          setWhatWeFixItems(parsed)
+        }
+      } catch {
+        // Keep defaults on failure
+      }
+    }
+
+    void loadWhatWeFixItems()
   }, [])
 
   useEffect(() => {
@@ -174,20 +252,22 @@ export default function LandingPage() {
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {SERVICES.map((svc, i) => (
+          {whatWeFixItems.map((svc, i) => {
+            const Icon = WHAT_WE_FIX_ICON_COMPONENTS[svc.icon]
+            return (
             <div
-              key={svc.label}
+              key={`${svc.name}-${i}`}
               className={`glass-panel p-6 hover:border-emperor-gold/30 transition-all duration-300 group cursor-default ${mounted ? 'animate-fade-up' : 'opacity-0'}`}
               style={{ animationDelay: `${0.3 + i * 0.1}s` }}
             >
-              <svc.icon className="w-8 h-8 text-emperor-gold/70 group-hover:text-emperor-gold transition-colors mb-4" />
-              <h3 className="font-display font-semibold text-emperor-cream mb-1">{svc.label}</h3>
+              <Icon className="w-8 h-8 text-emperor-gold/70 group-hover:text-emperor-gold transition-colors mb-4" />
+              <h3 className="font-display font-semibold text-emperor-cream mb-1">{svc.name}</h3>
               <div className="flex items-center justify-between mt-3">
                 <span className="text-sm text-emperor-gold font-mono">{svc.price}</span>
-                <span className="text-xs text-emperor-cream/30 font-mono">{svc.time}</span>
+                <span className="text-xs text-emperor-cream/30 font-mono">{svc.service}</span>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       </section>
 

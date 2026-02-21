@@ -5,14 +5,17 @@ import Link from 'next/link'
 import {
   Smartphone,
   ArrowLeft,
+  Battery,
   Dumbbell,
   Wrench,
   Moon,
   Car,
   Coffee,
+  Cpu,
   Phone,
   PhoneCall,
   MapPin,
+  Monitor,
   Bell,
   MessageSquare,
   Calendar,
@@ -37,10 +40,19 @@ import {
 import ChatLogOverlay from '@/components/ChatLogOverlay'
 import AgentPromptControlPanel from '@/components/AgentPromptControlPanel'
 
-type DashboardTab = 'brandon' | 'leads' | 'agent'
+type DashboardTab = 'brandon' | 'leads' | 'landing' | 'agent'
 type StatusMode = 'working' | 'gym' | 'driving' | 'break' | 'sleeping' | 'custom'
 type VoiceName = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimmer' | 'verse' | 'marin' | 'cedar'
 type Gender = 'male' | 'female' | 'neutral'
+type WhatWeFixIcon = 'monitor' | 'battery' | 'zap' | 'cpu'
+
+interface WhatWeFixItem {
+  id: string
+  icon: WhatWeFixIcon
+  name: string
+  price: string
+  service: string
+}
 
 interface VoiceOption {
   value: VoiceName
@@ -127,6 +139,71 @@ const STATUS_OPTIONS: Record<StatusMode, StatusConfig> = {
   break:    { icon: Coffee,   label: 'On Break',      color: 'text-accent-amber',     bgColor: 'bg-accent-amber/10 border-accent-amber/20',     defaultNote: 'Quick break, back shortly' },
   sleeping: { icon: Moon,     label: 'Away / Closed', color: 'text-purple-400',       bgColor: 'bg-purple-400/10 border-purple-400/20',         defaultNote: 'Currently Closed.' },
   custom:   { icon: Settings, label: 'Custom',        color: 'text-emperor-cream/60', bgColor: 'bg-emperor-cream/5 border-emperor-cream/10',    defaultNote: '' },
+}
+
+const WHAT_WE_FIX_ICON_COMPONENTS: Record<WhatWeFixIcon, typeof Monitor> = {
+  monitor: Monitor,
+  battery: Battery,
+  zap: Zap,
+  cpu: Cpu,
+}
+
+const WHAT_WE_FIX_ICON_OPTIONS: Array<{ value: WhatWeFixIcon; label: string }> = [
+  { value: 'monitor', label: 'Screen' },
+  { value: 'battery', label: 'Battery' },
+  { value: 'zap', label: 'Charging' },
+  { value: 'cpu', label: 'Diagnostic' },
+]
+
+const DEFAULT_WHAT_WE_FIX_ITEMS: WhatWeFixItem[] = [
+  { id: 'screen-repair', icon: 'monitor', name: 'Screen Repair', price: 'From $79', service: '~45 min' },
+  { id: 'battery-swap', icon: 'battery', name: 'Battery Swap', price: 'From $49', service: '~30 min' },
+  { id: 'charging-port', icon: 'zap', name: 'Charging Port', price: 'From $59', service: '~40 min' },
+  { id: 'diagnostics', icon: 'cpu', name: 'Diagnostics', price: 'Free', service: '~15 min' },
+]
+
+function parseWhatWeFixItems(raw: unknown): WhatWeFixItem[] | null {
+  if (typeof raw !== 'string' || raw.trim().length === 0) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return null
+    }
+
+    const mapped = parsed
+      .map((item, index): WhatWeFixItem | null => {
+        if (!item || typeof item !== 'object') {
+          return null
+        }
+
+        const candidate = item as Partial<WhatWeFixItem>
+        const icon = candidate.icon
+        if (icon !== 'monitor' && icon !== 'battery' && icon !== 'zap' && icon !== 'cpu') {
+          return null
+        }
+
+        const name = typeof candidate.name === 'string' ? candidate.name.trim() : ''
+        const price = typeof candidate.price === 'string' ? candidate.price.trim() : ''
+        const service = typeof candidate.service === 'string' ? candidate.service.trim() : ''
+        if (!name || !price || !service) {
+          return null
+        }
+
+        const id = typeof candidate.id === 'string' && candidate.id.trim().length > 0
+          ? candidate.id.trim()
+          : `what-we-fix-${index + 1}`
+
+        return { id, icon, name, price, service }
+      })
+      .filter((item): item is WhatWeFixItem => item !== null)
+
+    return mapped.length > 0 ? mapped : null
+  } catch {
+    return null
+  }
 }
 
 interface Lead {
@@ -278,6 +355,11 @@ export default function DashboardPage() {
   const [newServiceText, setNewServiceText] = useState('')
   const [editingServiceIndex, setEditingServiceIndex] = useState<number | null>(null)
   const [editingServiceText, setEditingServiceText] = useState('')
+  const [whatWeFixItems, setWhatWeFixItems] = useState<WhatWeFixItem[]>(DEFAULT_WHAT_WE_FIX_ITEMS)
+  const [newFixName, setNewFixName] = useState('')
+  const [newFixPrice, setNewFixPrice] = useState('')
+  const [newFixService, setNewFixService] = useState('')
+  const [newFixIcon, setNewFixIcon] = useState<WhatWeFixIcon>('monitor')
 
   const [config, setConfig] = useState<AssistantConfig>({
     aiAnswersCalls: true,
@@ -350,6 +432,7 @@ export default function DashboardPage() {
   const TABS: Array<{ id: DashboardTab; label: string; icon: typeof Wrench; badge?: number }> = [
     { id: 'brandon', label: 'Brandon',       icon: Smartphone                          },
     { id: 'leads',   label: 'Leads',         icon: BarChart3, badge: leads.length || 0 },
+    { id: 'landing', label: 'What We Fix',   icon: Monitor                             },
     { id: 'agent',   label: 'Agent Control', icon: Bot                                 },
   ]
 
@@ -410,6 +493,7 @@ export default function DashboardPage() {
         if (stateData?.status === 'success' && stateData.state) {
           const s = stateData.state
           const normalizedVoice = normalizeVoiceName(typeof s.voice === 'string' ? s.voice : undefined)
+          const loadedWhatWeFixItems = parseWhatWeFixItems(s.what_we_fix_items)
           if (s.status && s.status in STATUS_OPTIONS) setCurrentStatus(s.status as StatusMode)
           if (s.notes)    setNotes(s.notes)
           if (typeof s.operational_hours_enabled === 'boolean') {
@@ -444,6 +528,9 @@ export default function DashboardPage() {
             aiAnswersSms:   s.ai_answers_sms    !== undefined ? s.ai_answers_sms    : prev.aiAnswersSms,
             autoUpsell:     s.auto_upsell       !== undefined ? s.auto_upsell       : prev.autoUpsell,
           }))
+          if (loadedWhatWeFixItems) {
+            setWhatWeFixItems(loadedWhatWeFixItems)
+          }
         }
       } catch { /* silent */ }
       finally {
@@ -490,6 +577,7 @@ export default function DashboardPage() {
             operational_close_time: operationalHoursEnabled ? operationalCloseTime : null,
             services_block:   'SERVICES & PRICING (approximate — always say "starting at"):\n' +
                               config.serviceLines.map(l => `- ${l}`).join('\n'),
+            what_we_fix_items: JSON.stringify(whatWeFixItems),
           }),
         }),
         // Keep agent_shared_tone in sync — it is the source of truth for persona/tone
@@ -533,7 +621,7 @@ export default function DashboardPage() {
         clearTimeout(autoSaveTimeoutRef.current)
       }
     }
-  }, [currentStatus, notes, config, operationalHoursEnabled, operationalOpenTime, operationalCloseTime])
+  }, [currentStatus, notes, config, operationalHoursEnabled, operationalOpenTime, operationalCloseTime, whatWeFixItems])
 
   return (
     <main className="min-h-screen bg-emperor-black">
@@ -1184,7 +1272,185 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* TAB 3  AGENT CONTROL */}
+        {/* TAB 3  LANDING WHAT WE FIX */}
+        {activeTab === 'landing' && (
+          <div className="space-y-6">
+            <Panel>
+              <PanelHeader
+                icon={Monitor}
+                title="Landing: What We Fix"
+                aside={<span className="text-[10px] font-mono text-emperor-gold/40 border border-emperor-gold/20 rounded px-1.5 py-0.5">{whatWeFixItems.length} cards active</span>}
+              />
+              <p className="text-[11px] text-emperor-cream/60 sm:text-emperor-cream/30 font-mono mb-4">
+                Controls the landing page service cards exactly as shown now. Edit name, price, service detail, and icon.
+              </p>
+
+              <div className="space-y-3">
+                {whatWeFixItems.map((item, idx) => {
+                  const CardIcon = WHAT_WE_FIX_ICON_COMPONENTS[item.icon]
+                  return (
+                    <div key={item.id} className="rounded-xl border border-emperor-cream/10 bg-emperor-cream/5 p-3">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-[10px] font-mono text-emperor-gold/60">Card {idx + 1}</span>
+                        <CardIcon className="w-3.5 h-3.5 text-emperor-gold/70" />
+                        <button
+                          onClick={() => {
+                            setWhatWeFixItems((prev) => prev.filter((entry) => entry.id !== item.id))
+                            setStatusSaved(false)
+                          }}
+                          className="ml-auto p-1.5 rounded-lg text-emperor-cream/45 hover:text-red-400/70 hover:bg-red-400/5 transition-colors"
+                          title="Remove card"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <div>
+                          <FieldLabel>Name</FieldLabel>
+                          <input
+                            type="text"
+                            value={item.name}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setWhatWeFixItems((prev) => prev.map((entry) => entry.id === item.id ? { ...entry, name: value } : entry))
+                              setStatusSaved(false)
+                            }}
+                            className="input-emperor !py-2 text-xs font-mono"
+                            placeholder="Service name"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>Price</FieldLabel>
+                          <input
+                            type="text"
+                            value={item.price}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setWhatWeFixItems((prev) => prev.map((entry) => entry.id === item.id ? { ...entry, price: value } : entry))
+                              setStatusSaved(false)
+                            }}
+                            className="input-emperor !py-2 text-xs font-mono"
+                            placeholder="From $79"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>Service Detail</FieldLabel>
+                          <input
+                            type="text"
+                            value={item.service}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              setWhatWeFixItems((prev) => prev.map((entry) => entry.id === item.id ? { ...entry, service: value } : entry))
+                              setStatusSaved(false)
+                            }}
+                            className="input-emperor !py-2 text-xs font-mono"
+                            placeholder="~45 min"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <FieldLabel>Icon</FieldLabel>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                          {WHAT_WE_FIX_ICON_OPTIONS.map((option) => {
+                            const Icon = WHAT_WE_FIX_ICON_COMPONENTS[option.value]
+                            const active = item.icon === option.value
+                            return (
+                              <button
+                                key={option.value}
+                                onClick={() => {
+                                  setWhatWeFixItems((prev) => prev.map((entry) => entry.id === item.id ? { ...entry, icon: option.value } : entry))
+                                  setStatusSaved(false)
+                                }}
+                                className={`px-2 py-2 rounded-lg border flex items-center gap-1.5 justify-center text-xs transition-colors ${
+                                  active
+                                    ? 'bg-emperor-gold/10 border-emperor-gold/30 text-emperor-gold'
+                                    : 'border-emperor-cream/10 text-emperor-cream/45 hover:text-emperor-cream/70 hover:bg-emperor-cream/5'
+                                }`}
+                              >
+                                <Icon className="w-3.5 h-3.5" />
+                                {option.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="mt-4 rounded-xl border border-emperor-gold/20 bg-emperor-gold/5 p-3">
+                <p className="text-[10px] uppercase tracking-widest text-emperor-gold/60 font-mono mb-2">Add Service Card</p>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={newFixName}
+                    onChange={(e) => setNewFixName(e.target.value)}
+                    className="input-emperor !py-2 text-xs font-mono"
+                    placeholder="Name"
+                  />
+                  <input
+                    type="text"
+                    value={newFixPrice}
+                    onChange={(e) => setNewFixPrice(e.target.value)}
+                    className="input-emperor !py-2 text-xs font-mono"
+                    placeholder="Price"
+                  />
+                  <input
+                    type="text"
+                    value={newFixService}
+                    onChange={(e) => setNewFixService(e.target.value)}
+                    className="input-emperor !py-2 text-xs font-mono"
+                    placeholder="Service detail"
+                  />
+                  <select
+                    value={newFixIcon}
+                    onChange={(e) => setNewFixIcon(e.target.value as WhatWeFixIcon)}
+                    className="input-emperor !py-2 text-xs font-mono"
+                  >
+                    {WHAT_WE_FIX_ICON_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => {
+                      setWhatWeFixItems(DEFAULT_WHAT_WE_FIX_ITEMS)
+                      setStatusSaved(false)
+                    }}
+                    className="text-[10px] font-mono text-emperor-cream/60 hover:text-emperor-gold/70 transition-colors"
+                  >
+                    ↺ reset to current defaults
+                  </button>
+                  <button
+                    onClick={() => {
+                      const name = newFixName.trim()
+                      const price = newFixPrice.trim()
+                      const service = newFixService.trim()
+                      if (!name || !price || !service) return
+
+                      const id = `what-we-fix-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+                      setWhatWeFixItems((prev) => [...prev, { id, icon: newFixIcon, name, price, service }])
+                      setNewFixName('')
+                      setNewFixPrice('')
+                      setNewFixService('')
+                      setNewFixIcon('monitor')
+                      setStatusSaved(false)
+                    }}
+                    className="px-3 py-2 rounded-lg bg-emperor-gold/15 border border-emperor-gold/30 text-emperor-gold text-xs hover:bg-emperor-gold/25 transition-colors"
+                  >
+                    Add Card
+                  </button>
+                </div>
+              </div>
+            </Panel>
+          </div>
+        )}
+
+        {/* TAB 4  AGENT CONTROL */}
         {activeTab === 'agent' && <AgentPromptControlPanel />}
 
       </div>

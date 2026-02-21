@@ -71,6 +71,7 @@ export interface BrandonState {
   // Dynamic knowledge base — editable from the dashboard
   services_block?: string      // Full services & pricing text block
   behavior_rules?: string      // JSON array of rule strings e.g. '["Rule 1","Rule 2"]'
+  what_we_fix_items?: string   // JSON array for landing page service cards
   operational_hours_enabled?: boolean
   operational_open_time?: string | null
   operational_close_time?: string | null
@@ -175,6 +176,7 @@ export async function updateBrandonState(
     | 'agent_phone_temperature'
     | 'services_block'
     | 'behavior_rules'
+    | 'what_we_fix_items'
     | 'operational_hours_enabled'
     | 'operational_open_time'
     | 'operational_close_time'
