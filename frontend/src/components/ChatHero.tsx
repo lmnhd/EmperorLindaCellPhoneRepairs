@@ -82,6 +82,37 @@ export default function ChatHero() {
   const [persona, setPersona] = useState<PersonaKey>('professional')
   const [voiceOverride, setVoiceOverride] = useState<VoiceName | undefined>(undefined)
   const [sessionId] = useState(() => `web-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+  const [heroViewportHeight, setHeroViewportHeight] = useState<number | null>(null)
+
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      if (typeof window === 'undefined') {
+        return
+      }
+
+      const visualViewport = window.visualViewport
+      if (!visualViewport) {
+        setHeroViewportHeight(window.innerHeight)
+        return
+      }
+
+      const viewportHeight = Math.round(visualViewport.height + visualViewport.offsetTop)
+      setHeroViewportHeight(viewportHeight)
+    }
+
+    updateViewportHeight()
+
+    const visualViewport = window.visualViewport
+    visualViewport?.addEventListener('resize', updateViewportHeight)
+    visualViewport?.addEventListener('scroll', updateViewportHeight)
+    window.addEventListener('orientationchange', updateViewportHeight)
+
+    return () => {
+      visualViewport?.removeEventListener('resize', updateViewportHeight)
+      visualViewport?.removeEventListener('scroll', updateViewportHeight)
+      window.removeEventListener('orientationchange', updateViewportHeight)
+    }
+  }, [])
 
   useEffect(() => {
     const loadState = async () => {
@@ -171,6 +202,10 @@ export default function ChatHero() {
   }, [])
 
   const busy = useMemo(() => isLoading || isRequestingMic, [isLoading, isRequestingMic])
+  const heroHeightPx = heroViewportHeight ? Math.max(heroViewportHeight - 78, 420) : null
+  const heroSectionStyle = heroHeightPx
+    ? { height: `${heroHeightPx}px`, minHeight: `${heroHeightPx}px` }
+    : undefined
   const hasConversationHistory = messages.some((message) => message.role === 'user')
   const latestAssistantMessage = useMemo(() => {
     const latest = [...messages].reverse().find((message) => message.role === 'assistant')
@@ -338,7 +373,10 @@ export default function ChatHero() {
   }
 
   return (
-    <section className="relative isolate min-h-[calc(100vh-78px)] overflow-hidden">
+    <section
+      className="relative isolate h-[calc(100dvh-78px)] min-h-[calc(100dvh-78px)] overflow-hidden"
+      style={heroSectionStyle}
+    >
       <Image
         src={heroImage}
         alt="Cracked iPhone transforming into a like-new iPhone"
@@ -353,7 +391,7 @@ export default function ChatHero() {
 
       <UserMessagePanel messages={messages} />
 
-      <div className="relative z-20 mx-auto flex min-h-[calc(100vh-78px)] w-full max-w-7xl flex-col items-center justify-between px-6 pb-10 pt-20 lg:pt-28">
+      <div className="relative z-20 mx-auto flex h-full min-h-full w-full max-w-7xl flex-col items-center justify-between px-6 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-20 lg:pt-28">
         <motion.div
           initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}

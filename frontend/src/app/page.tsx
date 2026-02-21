@@ -28,9 +28,40 @@ const REVIEWS = [
 
 export default function LandingPage() {
   const [mounted, setMounted] = useState(false)
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
 
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const updateKeyboardState = () => {
+      const vv = window.visualViewport
+      if (!vv) {
+        setIsKeyboardOpen(false)
+        return
+      }
+
+      const likelyKeyboard = window.innerWidth < 1024 && vv.height < window.innerHeight * 0.78
+      setIsKeyboardOpen(likelyKeyboard)
+    }
+
+    updateKeyboardState()
+
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', updateKeyboardState)
+    vv?.addEventListener('scroll', updateKeyboardState)
+    window.addEventListener('orientationchange', updateKeyboardState)
+
+    return () => {
+      vv?.removeEventListener('resize', updateKeyboardState)
+      vv?.removeEventListener('scroll', updateKeyboardState)
+      window.removeEventListener('orientationchange', updateKeyboardState)
+    }
   }, [])
 
   return (
@@ -59,6 +90,8 @@ export default function LandingPage() {
 
       <ChatHero />
 
+      {!isKeyboardOpen && (
+        <>
       {/* Services Grid */}
       <section className="relative z-10 max-w-6xl mx-auto px-6 py-20">
         <div className="text-center mb-12">
@@ -133,6 +166,8 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+        </>
+      )}
     </main>
   )
 }
