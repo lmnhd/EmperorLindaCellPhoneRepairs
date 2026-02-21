@@ -227,10 +227,9 @@ export async function createLead(
 ): Promise<string> {
   const now = new Date()
   const unixNow = Math.floor(now.getTime() / 1000)
-  const timestamp = now.toISOString().replace(/[-:T]/g, '').slice(0, 15)
   const random = Math.random().toString(36).substring(2, 8)
   const prefix = leadType === 'callback' ? 'CALLBACK' : leadType === 'on_site' ? 'ONSITE' : 'LEAD'
-  const leadId = `${prefix}-${timestamp}-${random}`
+  const leadId = `${prefix}-${unixNow}-${random}`
 
   const lead: RepairLead = {
     lead_id: leadId,

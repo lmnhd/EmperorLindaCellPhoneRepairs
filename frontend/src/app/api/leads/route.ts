@@ -10,6 +10,29 @@ interface LeadIntakeBody {
   device?: string
 }
 
+function getBusinessDateAndTime(now: Date): { date: string; time: string } {
+  const timeZone = process.env.BUSINESS_TIME_ZONE || 'America/New_York'
+
+  const dateFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+
+  const timeFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+
+  return {
+    date: dateFormatter.format(now),
+    time: timeFormatter.format(now),
+  }
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/leads  —  retrieve all bookings from DynamoDB (newest first)
 // ---------------------------------------------------------------------------
@@ -82,12 +105,7 @@ export async function POST(req: Request) {
       : 'Unknown Device'
 
     const now = new Date()
-    const date = now.toISOString().split('T')[0]
-    const time = now.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    })
+    const { date, time } = getBusinessDateAndTime(now)
 
     const leadId = await createLead(
       phone || 'unknown',
