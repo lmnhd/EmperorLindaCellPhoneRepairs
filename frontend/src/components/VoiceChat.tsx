@@ -14,6 +14,8 @@ type PersonaKey = 'laidback' | 'professional' | 'hustler'
 type VoiceName = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'sage' | 'shimmer' | 'verse' | 'marin' | 'cedar' | 'fable' | 'onyx' | 'nova'
 type CallState = 'calling' | 'connected' | 'ending'
 
+const AUTO_END_IDLE_MS = 45_000
+
 interface VoiceHistoryEntry {
   role: 'user' | 'assistant'
   content: string
@@ -64,11 +66,14 @@ export default function VoiceChat({
   const [isMuted, setIsMuted] = useState(false)
   const [isSpeakerOn, setIsSpeakerOn] = useState(true)
   const [barHeights, setBarHeights] = useState<number[]>(Array(24).fill(4))
+  const [endNotice, setEndNotice] = useState<string | null>(null)
 
   const callTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const idleAutoEndTimerRef = useRef<NodeJS.Timeout | null>(null)
   const animFrameRef = useRef<number>(0)
   const transcriptContainerRef = useRef<HTMLDivElement>(null)
   const hasConnectedRef = useRef(false)
+  const hasEndedRef = useRef(false)
   const lastAssistantTsRef = useRef(0)
   const sessionIdRef = useRef<string>(sessionId ?? `voice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   const latestTranscriptRef = useRef<VoiceHistoryEntry[]>([])
@@ -151,6 +156,8 @@ export default function VoiceChat({
       return
     }
 
+    hasEndedRef.current = false
+    setEndNotice(null)
     setIsConnecting(true)
 
     try {
@@ -309,6 +316,11 @@ export default function VoiceChat({
   }, [setSpeakerEnabled])
 
   const endCall = useCallback(() => {
+    if (hasEndedRef.current) {
+      return
+    }
+
+    hasEndedRef.current = true
     setCallState('ending')
 
     const history: VoiceHistoryEntry[] = transcript.map((entry) => ({
@@ -325,6 +337,41 @@ export default function VoiceChat({
       onEndCall(history)
     }, 700)
   }, [disconnect, onEndCall, persistTranscript, transcript])
+
+  const clearIdleAutoEndTimer = useCallback(() => {
+    if (idleAutoEndTimerRef.current) {
+      clearTimeout(idleAutoEndTimerRef.current)
+      idleAutoEndTimerRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (callState !== 'connected') {
+      clearIdleAutoEndTimer()
+      return
+    }
+
+    if (isAiSpeaking || isListening || isProcessing) {
+      clearIdleAutoEndTimer()
+      return
+    }
+
+    clearIdleAutoEndTimer()
+    idleAutoEndTimerRef.current = setTimeout(() => {
+      setEndNotice('Call ended due to inactivity')
+      endCall()
+    }, AUTO_END_IDLE_MS)
+
+    return () => {
+      clearIdleAutoEndTimer()
+    }
+  }, [callState, clearIdleAutoEndTimer, endCall, isAiSpeaking, isListening, isProcessing])
+
+  useEffect(() => {
+    return () => {
+      clearIdleAutoEndTimer()
+    }
+  }, [clearIdleAutoEndTimer])
 
   if (renderMode === 'hero') {
     const statusLabel =
@@ -479,7 +526,9 @@ export default function VoiceChat({
         <div className="flex items-center justify-center w-24 h-24 mb-6 rounded-full opacity-50 bg-emperor-slate">
           <PhoneOff className="w-10 h-10 text-emperor-cream/40" />
         </div>
-        <p className="font-mono text-sm text-emperor-cream/40">Call ended</p>
+        <p className="font-mono text-sm text-emperor-cream/40">
+          {endNotice ?? 'Call ended'}
+        </p>
         <p className="mt-1 font-mono text-xs text-emperor-cream/20">
           {formatDuration(callDuration)}
         </p>
