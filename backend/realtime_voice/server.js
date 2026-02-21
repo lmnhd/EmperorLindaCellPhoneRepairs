@@ -33,6 +33,9 @@ const LEGACY_TO_REALTIME_VOICE_MAP = {
   fable: 'verse',
 }
 
+const ACK_ONLY_REGEX = /^(yes|yeah|yep|ok|okay|alright|sure|thanks|thank you|uh huh|uh-huh|mhm|mmhmm|got it|cool|nice|right)\.?$/i
+const FAREWELL_REGEX = /(bye|goodbye|talk to you later|that'?s all|all good|i'?m good|no thanks|thank you bye)/i
+
 if (!OPENAI_API_KEY) {
   throw new Error('Missing OPENAI_API_KEY for realtime voice relay')
 }
@@ -71,6 +74,44 @@ function buildFallbackConfig() {
   }
 }
 
+function buildPhoneGuardrails() {
+  return [
+    'PHONE SAFETY RULES (MANDATORY):',
+    '- Never invent device model, carrier, part, quote, or diagnosis details.',
+    '- If model/variant is unknown, ask a single clarifying question: "What phone model is it?"',
+    '- Do not claim a specific model unless caller explicitly said it in this call.',
+    '- Keep replies short (1-2 sentences) and only ask one question at a time.',
+    '- If caller says thanks/bye, end politely and do not ask follow-up questions.',
+  ].join('\n')
+}
+
+function normalizeForIntent(text) {
+  return text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function isFarewellTranscript(text) {
+  const normalized = normalizeForIntent(text)
+  return FAREWELL_REGEX.test(normalized)
+}
+
+function shouldTriggerAssistantReply(text) {
+  const normalized = normalizeForIntent(text)
+  if (!normalized) {
+    return false
+  }
+
+  if (ACK_ONLY_REGEX.test(normalized)) {
+    return false
+  }
+
+  const words = normalized.split(' ').filter(Boolean)
+  if (words.length <= 1) {
+    return false
+  }
+
+  return true
+}
+
 function resolveChatLogsUrl() {
   if (typeof CHAT_LOGS_URL === 'string' && CHAT_LOGS_URL.trim().length > 0) {
     return CHAT_LOGS_URL.trim()
@@ -93,6 +134,20 @@ function resolveLeadsUrl() {
   }
 
   return null
+}
+
+function summarizeResolvedConfig() {
+  return {
+    model: OPENAI_REALTIME_MODEL,
+    voiceDefault: DEFAULT_VOICE,
+    hasAgentConfigPhoneUrl: typeof AGENT_CONFIG_PHONE_URL === 'string' && AGENT_CONFIG_PHONE_URL.trim().length > 0,
+    hasChatLogsUrl: typeof CHAT_LOGS_URL === 'string' && CHAT_LOGS_URL.trim().length > 0,
+    hasLeadsUrl: typeof LEADS_URL === 'string' && LEADS_URL.trim().length > 0,
+    hasFrontendUrl: typeof FRONTEND_URL === 'string' && FRONTEND_URL.trim().length > 0,
+    resolvedAgentConfigUrl: resolveAgentConfigUrl(),
+    resolvedChatLogsUrl: resolveChatLogsUrl(),
+    resolvedLeadsUrl: resolveLeadsUrl(),
+  }
 }
 
 function inferCustomerName(messages) {
@@ -300,14 +355,20 @@ async function loadRuntimeConfig({ forceRefresh = false } = {}) {
 }
 
 function sendSessionUpdate(openAiWs, config) {
+  const instructions = `${config.systemPrompt}\n\n${buildPhoneGuardrails()}`
+
   const sessionUpdate = {
     type: 'session.update',
     session: {
-      turn_detection: { type: 'server_vad' },
+      turn_detection: {
+        type: 'server_vad',
+        create_response: false,
+        interrupt_response: true,
+      },
       input_audio_format: 'g711_ulaw',
       output_audio_format: 'g711_ulaw',
       voice: config.voice,
-      instructions: config.systemPrompt,
+      instructions,
       modalities: ['text', 'audio'],
       temperature: 0.7,
       input_audio_transcription: { model: 'whisper-1' },
@@ -331,6 +392,37 @@ function sendInitialGreeting(openAiWs, assistantName, greeting) {
   }
 
   openAiWs.send(JSON.stringify(greetingRequest))
+}
+
+function requestAssistantReply(openAiWs) {
+  if (openAiWs.readyState !== WebSocket.OPEN) {
+    return
+  }
+
+  openAiWs.send(
+    JSON.stringify({
+      type: 'response.create',
+      response: {
+        modalities: ['audio', 'text'],
+      },
+    }),
+  )
+}
+
+function sendGoodbye(openAiWs) {
+  if (openAiWs.readyState !== WebSocket.OPEN) {
+    return
+  }
+
+  openAiWs.send(
+    JSON.stringify({
+      type: 'response.create',
+      response: {
+        modalities: ['audio', 'text'],
+        instructions: 'Caller is ending the call. Say one short polite goodbye only, and do not ask a question.',
+      },
+    }),
+  )
 }
 
 app.get('/', async () => {
@@ -394,6 +486,8 @@ app.register(async (fastify) => {
     const assistantResponseIds = new Set()
     let transcriptPersisted = false
     let leadCreated = false
+    let hasActiveAssistantResponse = false
+    let farewellHandled = false
     let latestMediaTimestamp = 0
     let responseStartTimestamp = null
     let lastAssistantItemId = null
@@ -475,6 +569,7 @@ app.register(async (fastify) => {
           app.log.info({ streamSid }, 'OpenAI session updated and ready')
           if (pendingGreetingAssistantName) {
             sendInitialGreeting(openAiWs, pendingGreetingAssistantName, pendingGreeting)
+            hasActiveAssistantResponse = true
             pendingGreetingAssistantName = null
             pendingGreeting = null
           }
@@ -503,6 +598,25 @@ app.register(async (fastify) => {
           const appended = appendTranscriptMessage(transcriptMessages, 'user', transcript)
           if (appended) {
             app.log.info({ streamSid, callSid, transcript }, '[TwilioVoiceTranscript] user')
+
+            if (isFarewellTranscript(transcript)) {
+              if (!hasActiveAssistantResponse && !farewellHandled) {
+                sendGoodbye(openAiWs)
+                hasActiveAssistantResponse = true
+                farewellHandled = true
+              }
+              return
+            }
+
+            if (!shouldTriggerAssistantReply(transcript)) {
+              app.log.info({ streamSid, callSid, transcript }, 'Ignoring low-signal user transcript for reply trigger')
+              return
+            }
+
+            if (!hasActiveAssistantResponse) {
+              requestAssistantReply(openAiWs)
+              hasActiveAssistantResponse = true
+            }
           }
           return
         }
@@ -550,6 +664,7 @@ app.register(async (fastify) => {
           if (event.response?.status === 'failed') {
             app.log.error({ event }, 'OpenAI response failed')
           }
+          hasActiveAssistantResponse = false
           // Response finished (completed or failed) — clear tracking so a stale
           // lastAssistantItemId doesn't trigger a response.cancel on the next utterance.
           responseStartTimestamp = null
@@ -651,7 +766,7 @@ app.register(async (fastify) => {
 
 app.listen({ port: PORT, host: '0.0.0.0' })
   .then(() => {
-    app.log.info(`Realtime voice relay listening on ${PORT}`)
+    app.log.info({ port: PORT, ...summarizeResolvedConfig() }, 'Realtime voice relay listening')
   })
   .catch((error) => {
     app.log.error({ error }, 'Failed to start realtime voice relay')
