@@ -257,6 +257,7 @@ export default function DashboardPage() {
   const hasLoadedInitialStateRef = useRef(false)
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isSavingRef = useRef(false)
+  const serviceEditorRef = useRef<HTMLTextAreaElement | null>(null)
 
   const DEFAULT_SERVICE_LINES = [
     'Screen replacement: starting at $79 (iPhone), $89 (Samsung)',
@@ -275,6 +276,8 @@ export default function DashboardPage() {
     DEFAULT_SERVICE_LINES.map(l => `- ${l}`).join('\n')
 
   const [newServiceText, setNewServiceText] = useState('')
+  const [editingServiceIndex, setEditingServiceIndex] = useState<number | null>(null)
+  const [editingServiceText, setEditingServiceText] = useState('')
 
   const [config, setConfig] = useState<AssistantConfig>({
     aiAnswersCalls: true,
@@ -289,6 +292,47 @@ export default function DashboardPage() {
     servicesBlock:  DEFAULT_SERVICES_BLOCK,
     serviceLines:   DEFAULT_SERVICE_LINES,
   })
+
+  const openServiceEditor = (index: number) => {
+    const line = config.serviceLines[index]
+    if (typeof line !== 'string') return
+    setEditingServiceIndex(index)
+    setEditingServiceText(line)
+  }
+
+  const cancelServiceEditor = () => {
+    setEditingServiceIndex(null)
+    setEditingServiceText('')
+  }
+
+  const applyServiceEditor = () => {
+    if (editingServiceIndex === null) return
+    const updatedLine = editingServiceText.trim()
+    if (!updatedLine) return
+    setConfig((prev) => {
+      const updated = [...prev.serviceLines]
+      if (editingServiceIndex >= 0 && editingServiceIndex < updated.length) {
+        updated[editingServiceIndex] = updatedLine
+      }
+      return { ...prev, serviceLines: updated }
+    })
+    setStatusSaved(false)
+    cancelServiceEditor()
+  }
+
+  useEffect(() => {
+    if (editingServiceIndex === null) return
+    const timer = setTimeout(() => {
+      const textarea = serviceEditorRef.current
+      if (!textarea) return
+      textarea.focus()
+      const end = textarea.value.length
+      textarea.setSelectionRange(end, end)
+      textarea.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 80)
+
+    return () => clearTimeout(timer)
+  }, [editingServiceIndex])
 
   const selectedNameConfig = ASSISTANT_NAMES.find(n => n.value === config.assistantName) ?? ASSISTANT_NAMES[0]
   const availableVoices    = getVoicesForGender(selectedNameConfig.gender)
@@ -850,24 +894,25 @@ export default function DashboardPage() {
                   {config.serviceLines.map((line, idx) => (
                     <div key={idx} className="flex items-start gap-2 group" title={line}>
                       <span className="text-[10px] font-mono text-emperor-gold/40 mt-2.5 w-4 shrink-0 text-right">-</span>
-                      <input
-                        type="text"
-                        value={line}
-                        onChange={(e) => {
-                          const updated = [...config.serviceLines]
-                          updated[idx] = e.target.value
-                          setConfig(prev => ({ ...prev, serviceLines: updated }))
-                          setStatusSaved(false)
-                        }}
-                        className="input-emperor !py-1.5 text-xs font-mono flex-1 min-w-0"
-                      />
+                      <button
+                        onClick={() => openServiceEditor(idx)}
+                        className="input-emperor !py-1.5 text-xs font-mono flex-1 min-w-0 text-left hover:bg-emperor-cream/5 transition-colors"
+                        title="Edit item"
+                      >
+                        {line}
+                      </button>
                       <button
                         onClick={() => {
                           const updated = config.serviceLines.filter((_, i) => i !== idx)
                           setConfig(prev => ({ ...prev, serviceLines: updated }))
+                          if (editingServiceIndex === idx) {
+                            cancelServiceEditor()
+                          } else if (editingServiceIndex !== null && idx < editingServiceIndex) {
+                            setEditingServiceIndex(editingServiceIndex - 1)
+                          }
                           setStatusSaved(false)
                         }}
-                        className="mt-1.5 p-1.5 rounded-lg text-emperor-cream/15 hover:text-red-400/70 hover:bg-red-400/5 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                        className="mt-1.5 p-1.5 rounded-lg text-emperor-cream/45 sm:text-emperor-cream/15 hover:text-red-400/70 hover:bg-red-400/5 sm:opacity-0 sm:group-hover:opacity-100 transition-all shrink-0"
                         title="Remove item"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -875,6 +920,55 @@ export default function DashboardPage() {
                     </div>
                   ))}
                 </div>
+
+                {editingServiceIndex !== null && (
+                  <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3 sm:static sm:px-0 sm:pb-0 sm:mb-4">
+                    <div className="rounded-xl border border-emperor-gold/30 bg-emperor-black/95 backdrop-blur-xl p-3 shadow-2xl shadow-black/50">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] uppercase tracking-widest font-mono text-emperor-gold/70">Locked editor — service {editingServiceIndex + 1}</span>
+                        <button
+                          onClick={cancelServiceEditor}
+                          className="text-[10px] font-mono text-emperor-cream/50 hover:text-emperor-cream/80"
+                        >
+                          close
+                        </button>
+                      </div>
+                      <textarea
+                        ref={serviceEditorRef}
+                        value={editingServiceText}
+                        onChange={(e) => setEditingServiceText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            e.preventDefault()
+                            cancelServiceEditor()
+                            return
+                          }
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            applyServiceEditor()
+                          }
+                        }}
+                        className="input-emperor text-xs font-mono resize-none h-20"
+                        placeholder="Edit service line"
+                      />
+                      <div className="flex items-center justify-end gap-2 mt-2">
+                        <button
+                          onClick={cancelServiceEditor}
+                          className="px-3 py-1.5 rounded-lg border border-emperor-cream/20 text-emperor-cream/60 text-xs hover:bg-emperor-cream/5"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={applyServiceEditor}
+                          disabled={!editingServiceText.trim()}
+                          className="px-3 py-1.5 rounded-lg bg-emperor-gold/15 border border-emperor-gold/30 text-emperor-gold text-xs hover:bg-emperor-gold/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Add service line */}
                 <div className="flex gap-2">

@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowDown,
@@ -141,6 +141,9 @@ export default function AgentPromptControlPanel() {
   ]
   const [rules,         setRules]         = useState<string[]>(DEFAULT_BEHAVIOR_RULES)
   const [newRuleText,   setNewRuleText]   = useState('')
+  const [editingRuleIndex, setEditingRuleIndex] = useState<number | null>(null)
+  const [editingRuleText, setEditingRuleText] = useState('')
+  const ruleEditorRef = useRef<HTMLTextAreaElement | null>(null)
   const [rulesSaving,   setRulesSaving]   = useState(false)
   const [rulesSaved,    setRulesSaved]    = useState(false)
   const [rulesBaseline, setRulesBaseline] = useState<string[]>(DEFAULT_BEHAVIOR_RULES)
@@ -255,6 +258,46 @@ export default function AgentPromptControlPanel() {
     finally { setRulesSaving(false) }
   }
 
+  const openRuleEditor = (index: number) => {
+    const rule = rules[index]
+    if (typeof rule !== 'string') return
+    setEditingRuleIndex(index)
+    setEditingRuleText(rule)
+  }
+
+  const cancelRuleEditor = () => {
+    setEditingRuleIndex(null)
+    setEditingRuleText('')
+  }
+
+  const applyRuleEditor = () => {
+    if (editingRuleIndex === null) return
+    const updatedRule = editingRuleText.trim()
+    if (!updatedRule) return
+    setRules((prev) => {
+      const updated = [...prev]
+      if (editingRuleIndex >= 0 && editingRuleIndex < updated.length) {
+        updated[editingRuleIndex] = updatedRule
+      }
+      return updated
+    })
+    cancelRuleEditor()
+  }
+
+  useEffect(() => {
+    if (editingRuleIndex === null) return
+    const timer = setTimeout(() => {
+      const textarea = ruleEditorRef.current
+      if (!textarea) return
+      textarea.focus()
+      const end = textarea.value.length
+      textarea.setSelectionRange(end, end)
+      textarea.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 80)
+
+    return () => clearTimeout(timer)
+  }, [editingRuleIndex])
+
   const resetChatHistory = async () => {
     if (!showResetChatConfirm) {
       setShowResetChatConfirm(true)
@@ -328,16 +371,13 @@ export default function AgentPromptControlPanel() {
           {rules.map((rule, idx) => (
             <div key={idx} className="flex items-center gap-1.5 sm:gap-2 group" title={rule}>
               <span className="text-[10px] font-mono text-emperor-gold/40 w-4 sm:w-5 shrink-0 text-right">{idx + 1}.</span>
-              <input
-                type="text"
-                value={rule}
-                onChange={(e) => {
-                  const updated = [...rules]
-                  updated[idx] = e.target.value
-                  setRules(updated)
-                }}
-                className="input-emperor !py-1.5 text-[11px] sm:text-xs font-mono flex-1 min-w-0"
-              />
+              <button
+                onClick={() => openRuleEditor(idx)}
+                className="input-emperor !py-1.5 text-[11px] sm:text-xs font-mono flex-1 min-w-0 text-left hover:bg-emperor-cream/5 transition-colors"
+                title="Edit rule"
+              >
+                {rule}
+              </button>
               <div className="hidden sm:flex gap-0.5 mt-1.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
                 <button
                   onClick={() => {
@@ -375,9 +415,72 @@ export default function AgentPromptControlPanel() {
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
+              <button
+                onClick={() => {
+                  setRules(rules.filter((_, i) => i !== idx))
+                  if (editingRuleIndex === idx) {
+                    cancelRuleEditor()
+                  } else if (editingRuleIndex !== null && idx < editingRuleIndex) {
+                    setEditingRuleIndex(editingRuleIndex - 1)
+                  }
+                }}
+                className="sm:hidden p-1.5 rounded-lg text-emperor-cream/45 hover:text-red-400/70 hover:bg-red-400/5 transition-all shrink-0"
+                title="Remove rule"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </div>
           ))}
         </div>
+
+        {editingRuleIndex !== null && (
+          <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-3 sm:static sm:px-0 sm:pb-0 sm:mb-4">
+            <div className="rounded-xl border border-emperor-gold/30 bg-emperor-black/95 backdrop-blur-xl p-3 shadow-2xl shadow-black/50">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase tracking-widest font-mono text-emperor-gold/70">Locked editor — rule {editingRuleIndex + 1}</span>
+                <button
+                  onClick={cancelRuleEditor}
+                  className="text-[10px] font-mono text-emperor-cream/50 hover:text-emperor-cream/80"
+                >
+                  close
+                </button>
+              </div>
+              <textarea
+                ref={ruleEditorRef}
+                value={editingRuleText}
+                onChange={(e) => setEditingRuleText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    cancelRuleEditor()
+                    return
+                  }
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    applyRuleEditor()
+                  }
+                }}
+                className="input-emperor text-xs font-mono resize-none h-24"
+                placeholder="Edit behavior rule"
+              />
+              <div className="flex items-center justify-end gap-2 mt-2">
+                <button
+                  onClick={cancelRuleEditor}
+                  className="px-3 py-1.5 rounded-lg border border-emperor-cream/20 text-emperor-cream/60 text-xs hover:bg-emperor-cream/5"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={applyRuleEditor}
+                  disabled={!editingRuleText.trim()}
+                  className="px-3 py-1.5 rounded-lg bg-emperor-gold/15 border border-emperor-gold/30 text-emperor-gold text-xs hover:bg-emperor-gold/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-2 mb-3">
           <input
