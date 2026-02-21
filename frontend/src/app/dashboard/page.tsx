@@ -155,6 +155,22 @@ function formatLeadCreatedAt(unix?: number): string {
   })
 }
 
+function formatLeadScheduledAt(lead: Lead): string {
+  const date = typeof lead.appointment_date === 'string' ? lead.appointment_date.trim() : ''
+  const time = typeof lead.appointment_time === 'string' ? lead.appointment_time.trim() : ''
+
+  if (date && time) return `${date} at ${time}`
+  if (date) return date
+  if (time) return time
+  return 'Not scheduled'
+}
+
+function getScheduleLabelByType(leadType?: Lead['lead_type']): string {
+  if (leadType === 'on_site') return 'On-site visit'
+  if (leadType === 'callback') return 'Callback window'
+  return 'Appointment time'
+}
+
 function leadSourceLabel(source?: string): string {
   if (!source) return 'unknown'
   if (source === 'web-chat') return 'web chat'
@@ -979,7 +995,16 @@ export default function DashboardPage() {
                           )}
 
                           {/* Meta row */}
-                          <div className="flex items-center gap-4 text-xs text-emperor-cream/30 font-mono flex-wrap">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 rounded-lg border border-emperor-gold/25 bg-emperor-gold/8 px-2.5 py-1.5 text-xs font-mono">
+                              <Calendar className="h-3.5 w-3.5 text-emperor-gold/80" />
+                              <span className="text-emperor-gold/75 uppercase tracking-[0.08em]">{getScheduleLabelByType(lead.lead_type)}</span>
+                              <span className="text-emperor-gold/30">·</span>
+                              <Clock className="h-3.5 w-3.5 text-emperor-gold/70" />
+                              <span className="text-emperor-cream/90">{formatLeadScheduledAt(lead)}</span>
+                            </div>
+
+                            <div className="flex items-center gap-4 text-xs text-emperor-cream/30 font-mono flex-wrap">
                             {lead.phone && lead.phone !== 'unknown' && (
                               <span className={`flex items-center gap-1 ${
                                 canCall ? 'text-emperor-gold/80 font-semibold' : ''
@@ -990,9 +1015,8 @@ export default function DashboardPage() {
                               </span>
                             )}
                             <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" />{leadSourceLabel(lead.source)}</span>
-                            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{lead.appointment_date}</span>
-                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{lead.appointment_time}</span>
-                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />created {formatLeadCreatedAt(lead.created_at || lead.timestamp)}</span>
+                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />lead created {formatLeadCreatedAt(lead.created_at || lead.timestamp)}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
